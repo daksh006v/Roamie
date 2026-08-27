@@ -4,6 +4,7 @@ const dotenv = require('dotenv');
 const app = require('./app');
 const connectDB = require('./config/db');
 const { initSocketIO } = require('./sockets/socketHandler');
+const { initReminderCron } = require('./services/reminderCronService');
 
 // Load environment variables
 dotenv.config();
@@ -30,6 +31,7 @@ const PORT = process.env.PORT || 5000;
 
 server.listen(PORT, () => {
   console.log(`🚀 Roamie Server running on http://localhost:${PORT} in ${process.env.NODE_ENV || 'development'} mode`);
+  initReminderCron();
 });
 
 // Handle unhandled promise rejections

@@ -14,6 +14,8 @@ const {
 const chatRoutes = require('./chatRoutes');
 const expenseRoutes = require('./expenseRoutes');
 const mediaRoutes = require('./mediaRoutes');
+const itineraryRoutes = require('./itineraryRoutes');
+const placeRoutes = require('./placeRoutes');
 const { protect } = require('../middlewares/authMiddleware');
 const {
   requireRoomMembership,
@@ -30,10 +32,12 @@ router.route('/')
 router.post('/join', joinRoom);
 router.get('/invite/:inviteCode', previewRoomByInviteCode);
 
-// Mount nested routes for room messages, expenses, and media gallery
+// Mount nested routes for room messages, expenses, media, itinerary, and places
 router.use('/:roomId/messages', chatRoutes);
 router.use('/:roomId/expenses', expenseRoutes);
 router.use('/:roomId/media', mediaRoutes);
+router.use('/:roomId/itinerary', itineraryRoutes);
+router.use('/:roomId/places', placeRoutes);
 
 router.route('/:id')
   .get(requireRoomMembership, getRoomById)
