@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const errorHandler = require('./middlewares/errorHandler');
 const authRoutes = require('./routes/authRoutes');
+const roomRoutes = require('./routes/roomRoutes');
 
 const app = express();
 
@@ -21,6 +22,7 @@ app.get('/api/health', (req, res) => {
 
 // API Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/rooms', roomRoutes);
 
 // Global Error Handler
 app.use(errorHandler);
