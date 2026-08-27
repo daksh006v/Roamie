@@ -4,7 +4,7 @@ const User = require('../models/User');
 const { sendSuccess, sendError } = require('../utils/responseHandler');
 const { sendPushNotifications } = require('../services/pushNotificationService');
 
-// @desc    Get messages for a room (paginated / scrollback)
+// @desc    Get paginated message history for a room
 // @route   GET /api/rooms/:roomId/messages
 // @access  Private (Room member)
 const getMessages = async (req, res) => {
@@ -13,8 +13,14 @@ const getMessages = async (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 50;
     const skip = (page - 1) * limit;
+    const before = req.query.before; // Optional timestamp cursor
 
-    const messages = await Message.find({ roomId })
+    const query = { roomId };
+    if (before) {
+      query.createdAt = { $lt: new Date(before) };
+    }
+
+    const messages = await Message.find(query)
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
@@ -22,13 +28,14 @@ const getMessages = async (req, res) => {
 
     const total = await Message.countDocuments({ roomId });
 
-    return sendSuccess(res, 'Messages fetched', {
-      messages: messages.reverse(),
+    return sendSuccess(res, 'Messages fetched successfully', {
+      messages: messages.reverse(), // Chronological order for UI
       pagination: {
         page,
         limit,
         total,
         totalPages: Math.ceil(total / limit),
+        hasMore: skip + messages.length < total,
       },
     });
   } catch (error) {
@@ -36,7 +43,7 @@ const getMessages = async (req, res) => {
   }
 };
 
-// @desc    Send a message in a room
+// @desc    Send a message in a room (REST endpoint)
 // @route   POST /api/rooms/:roomId/messages
 // @access  Private (Room member)
 const sendMessage = async (req, res) => {
@@ -51,14 +58,19 @@ const sendMessage = async (req, res) => {
     const message = await Message.create({
       roomId,
       senderId: req.user._id,
-      text: text || '',
+      text: text ? text.trim() : '',
       mediaUrl: mediaUrl || '',
       messageType: messageType || (mediaUrl ? 'image' : 'text'),
     });
 
     const populated = await Message.findById(message._id).populate('senderId', 'name avatar email');
 
-    // Notify other room members via push
+    // Broadcast via Socket.IO if available on app
+    if (req.io) {
+      req.io.to(`room:${roomId}`).emit('new_message', populated);
+    }
+
+    // Push notifications to other members
     const otherMembers = await RoomMember.find({
       roomId,
       userId: { $ne: req.user._id },
@@ -73,7 +85,7 @@ const sendMessage = async (req, res) => {
       body: text || 'Sent a photo',
       data: {
         type: 'message',
-        roomId,
+        roomId: roomId.toString(),
         messageId: message._id.toString(),
       },
     }));
@@ -84,7 +96,7 @@ const sendMessage = async (req, res) => {
       );
     }
 
-    return sendSuccess(res, 'Message sent', { message: populated }, 201);
+    return sendSuccess(res, 'Message sent successfully', { message: populated }, 201);
   } catch (error) {
     return sendError(res, error.message, 500);
   }

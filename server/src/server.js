@@ -1,7 +1,9 @@
 const http = require('http');
+const { Server } = require('socket.io');
 const dotenv = require('dotenv');
 const app = require('./app');
 const connectDB = require('./config/db');
+const { initSocketIO } = require('./sockets/socketHandler');
 
 // Load environment variables
 dotenv.config();
@@ -10,6 +12,19 @@ dotenv.config();
 connectDB();
 
 const server = http.createServer(app);
+
+// Initialize Socket.IO with CORS
+const io = new Server(server, {
+  cors: {
+    origin: '*',
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  },
+});
+
+initSocketIO(io);
+
+// Provide io instance to Express app
+app.set('io', io);
 
 const PORT = process.env.PORT || 5000;
 
