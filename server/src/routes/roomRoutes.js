@@ -12,6 +12,7 @@ const {
   deleteRoom,
 } = require('../controllers/roomController');
 const chatRoutes = require('./chatRoutes');
+const expenseRoutes = require('./expenseRoutes');
 const { protect } = require('../middlewares/authMiddleware');
 const {
   requireRoomMembership,
@@ -28,8 +29,9 @@ router.route('/')
 router.post('/join', joinRoom);
 router.get('/invite/:inviteCode', previewRoomByInviteCode);
 
-// Mount nested routes for room messages
+// Mount nested routes for room messages & expenses
 router.use('/:roomId/messages', chatRoutes);
+router.use('/:roomId/expenses', expenseRoutes);
 
 router.route('/:id')
   .get(requireRoomMembership, getRoomById)
