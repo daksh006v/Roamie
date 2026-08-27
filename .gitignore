@@ -31,6 +31,8 @@ web-build/
 logs/
 *.log
 npm-debug.log*
+uploads/
+server/uploads/
 
 # OS Files
 .DS_Store
