@@ -17,6 +17,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 
 import { Colors } from '../../constants/theme';
 import { TripSettingsModal } from './TripSettingsModal';
+import { EditTripModal } from './EditTripModal';
+import { QuickEditTitleModal } from './QuickEditTitleModal';
 import api from '../../services/api';
 
 const { width } = Dimensions.get('window');
@@ -56,6 +58,14 @@ export interface RoomPermissions {
   };
 }
 
+export interface RoomNotificationSettings {
+  muted: boolean;
+  chat: boolean;
+  expenses: boolean;
+  itinerary: boolean;
+  gallery: boolean;
+}
+
 export interface RoomDetailsData {
   room: {
     _id: string;
@@ -72,6 +82,7 @@ export interface RoomDetailsData {
   };
   membership: {
     role: 'owner' | 'admin' | 'member';
+    notifications?: RoomNotificationSettings;
   };
   members: Array<{
     _id: string;
@@ -111,9 +122,13 @@ export const AboutTab: React.FC<AboutTabProps> = ({ data, onRefresh }) => {
   const isOwner = membership?.role === 'owner';
   const isAdmin = membership?.role === 'admin';
   const isAdminOrOwner = isOwner || isAdmin;
+  const adminCanEdit = room.permissions?.admins?.canEditTripInfo ?? true;
+  const canEditTrip = isOwner || (isAdmin && adminCanEdit);
 
   const [inviteModalVisible, setInviteModalVisible] = useState(false);
   const [settingsModalVisible, setSettingsModalVisible] = useState(false);
+  const [editTripModalVisible, setEditTripModalVisible] = useState(false);
+  const [quickEditTitleVisible, setQuickEditTitleVisible] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
 
   // Cover image source
@@ -228,9 +243,24 @@ export const AboutTab: React.FC<AboutTabProps> = ({ data, onRefresh }) => {
 
         {/* Hero Room Info */}
         <View style={styles.heroInfo}>
-          <Text style={styles.heroTitle} numberOfLines={1}>
-            {room.name}
-          </Text>
+          {canEditTrip ? (
+            <TouchableOpacity
+              style={styles.heroTitleTouchable}
+              onPress={() => setQuickEditTitleVisible(true)}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.heroTitle} numberOfLines={1}>
+                {room.name}
+              </Text>
+              <View style={styles.titleEditBadge}>
+                <Feather name="edit-2" size={13} color="#FFFFFF" />
+              </View>
+            </TouchableOpacity>
+          ) : (
+            <Text style={styles.heroTitle} numberOfLines={1}>
+              {room.name}
+            </Text>
+          )}
 
           {/* Destination */}
           <View style={styles.heroMetaRow}>
@@ -350,10 +380,10 @@ export const AboutTab: React.FC<AboutTabProps> = ({ data, onRefresh }) => {
         <View style={styles.card}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Trip Details</Text>
-            {isOwner && (
+            {canEditTrip && (
               <TouchableOpacity
                 style={styles.editBtn}
-                onPress={() => Alert.alert('Edit Trip', 'Edit trip modal coming in next phase.')}
+                onPress={() => setEditTripModalVisible(true)}
               >
                 <Feather name="edit-2" size={14} color={Colors.rooms.forestGreen} />
                 <Text style={styles.editBtnText}>Edit</Text>
@@ -574,6 +604,23 @@ export const AboutTab: React.FC<AboutTabProps> = ({ data, onRefresh }) => {
         data={data}
         onRefresh={onRefresh}
       />
+
+      {/* Edit Trip Modal */}
+      <EditTripModal
+        visible={editTripModalVisible}
+        onClose={() => setEditTripModalVisible(false)}
+        data={data}
+        onRefresh={onRefresh}
+      />
+
+      {/* Quick Edit Title Modal */}
+      <QuickEditTitleModal
+        visible={quickEditTitleVisible}
+        onClose={() => setQuickEditTitleVisible(false)}
+        roomId={room._id}
+        currentTitle={room.name}
+        onRefresh={onRefresh}
+      />
     </ScrollView>
   );
 };
@@ -624,15 +671,30 @@ const styles = StyleSheet.create({
     left: 20,
     right: 20,
   },
+  heroTitleTouchable: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
   heroTitle: {
     fontSize: 28,
     fontWeight: '800',
     color: '#FFFFFF',
     letterSpacing: -0.5,
-    marginBottom: 4,
     textShadowColor: 'rgba(0, 0, 0, 0.6)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 4,
+  },
+  titleEditBadge: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(0, 0, 0, 0.35)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
   },
   heroMetaRow: {
     flexDirection: 'row',

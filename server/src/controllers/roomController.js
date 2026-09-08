@@ -187,9 +187,20 @@ const getRoomById = async (req, res) => {
       };
     }
 
+    const memberObj = req.roomMember ? req.roomMember.toObject() : {};
+    if (!memberObj.notifications) {
+      memberObj.notifications = {
+        muted: false,
+        chat: true,
+        expenses: true,
+        itinerary: true,
+        gallery: true,
+      };
+    }
+
     return sendSuccess(res, 'Room details fetched', {
       room: roomObj,
-      membership: req.roomMember,
+      membership: memberObj,
       members,
       inviteDetails: {
         inviteCode: room.inviteCode,
@@ -514,6 +525,41 @@ const updateRoomPermissions = async (req, res) => {
   }
 };
 
+// @desc    Update Member's Room Notification Settings
+// @route   PUT /api/rooms/:id/notifications
+// @access  Private (Room Member only)
+const updateRoomNotifications = async (req, res) => {
+  try {
+    const roomId = req.params.id;
+    const { notifications } = req.body;
+
+    if (!notifications || typeof notifications !== 'object') {
+      return sendError(res, 'Notifications settings object is required', 400);
+    }
+
+    const member = await RoomMember.findOne({ roomId, userId: req.user._id });
+    if (!member) {
+      return sendError(res, 'Membership not found for this room', 404);
+    }
+
+    member.notifications = {
+      muted: notifications.muted !== undefined ? !!notifications.muted : (member.notifications?.muted ?? false),
+      chat: notifications.chat !== undefined ? !!notifications.chat : (member.notifications?.chat ?? true),
+      expenses: notifications.expenses !== undefined ? !!notifications.expenses : (member.notifications?.expenses ?? true),
+      itinerary: notifications.itinerary !== undefined ? !!notifications.itinerary : (member.notifications?.itinerary ?? true),
+      gallery: notifications.gallery !== undefined ? !!notifications.gallery : (member.notifications?.gallery ?? true),
+    };
+
+    await member.save();
+
+    return sendSuccess(res, 'Room notifications updated successfully', {
+      notifications: member.notifications,
+    });
+  } catch (error) {
+    return sendError(res, error.message, 500);
+  }
+};
+
 // @desc    Update Room (Owner or authorized Admin)
 // @route   PUT /api/rooms/:id
 // @access  Private (Owner or authorized Admin)
@@ -645,6 +691,7 @@ module.exports = {
   inviteContact,
   updateMemberRole,
   updateRoomPermissions,
+  updateRoomNotifications,
   updateRoom,
   leaveRoom,
   deleteRoom,

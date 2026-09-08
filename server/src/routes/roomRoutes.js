@@ -9,6 +9,7 @@ const {
   inviteContact,
   updateMemberRole,
   updateRoomPermissions,
+  updateRoomNotifications,
   updateRoom,
   leaveRoom,
   deleteRoom,
@@ -49,6 +50,7 @@ router.route('/:id')
 
 router.put('/:id/members/:memberId/role', requireRoomMembership, updateMemberRole);
 router.put('/:id/permissions', requireRoomMembership, updateRoomPermissions);
+router.put('/:id/notifications', requireRoomMembership, updateRoomNotifications);
 
 router.post('/:id/invite', requireRoomMembership, inviteContact);
 router.post('/:id/leave', requireRoomMembership, leaveRoom);

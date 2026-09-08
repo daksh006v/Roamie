@@ -15,6 +15,8 @@ import { Colors } from '../../constants/theme';
 import { useRouter } from 'expo-router';
 import { RoomDetailsData } from './AboutTab';
 import { RolePermissionsScreen } from './RolePermissionsScreen';
+import { RoomNotificationsModal } from './RoomNotificationsModal';
+import { EditTripModal } from './EditTripModal';
 import api from '../../services/api';
 
 interface TripSettingsModalProps {
@@ -37,6 +39,8 @@ export const TripSettingsModal: React.FC<TripSettingsModalProps> = ({
   const isAdminOrOwner = isOwner || isAdmin;
 
   const [rolePermScreenVisible, setRolePermScreenVisible] = useState(false);
+  const [notificationsModalVisible, setNotificationsModalVisible] = useState(false);
+  const [editTripModalVisible, setEditTripModalVisible] = useState(false);
 
   const adminCanEdit = room.permissions?.admins?.canEditTripInfo ?? true;
   const adminCanDelete = room.permissions?.admins?.canDeleteRoom ?? false;
@@ -124,6 +128,22 @@ export const TripSettingsModal: React.FC<TripSettingsModalProps> = ({
               contentContainerStyle={styles.scrollContent}
               showsVerticalScrollIndicator={false}
             >
+              {/* Room Notifications */}
+              <TouchableOpacity
+                style={styles.settingRow}
+                onPress={() => setNotificationsModalVisible(true)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.settingIconContainer}>
+                  <Feather name="bell" size={18} color="#648A62" />
+                </View>
+                <View style={styles.settingContent}>
+                  <Text style={styles.settingTitle}>Notifications</Text>
+                  <Text style={styles.settingSubtitle}>Mute or customize alerts for this room</Text>
+                </View>
+                <Feather name="chevron-right" size={18} color={Colors.rooms.mutedText} />
+              </TouchableOpacity>
+
               {/* Role & Permissions — Owner or Admin with canManageRoles */}
               {(isOwner || (isAdmin && (room.permissions?.admins?.canManageRoles ?? true))) && (
                 <TouchableOpacity
@@ -142,11 +162,11 @@ export const TripSettingsModal: React.FC<TripSettingsModalProps> = ({
                 </TouchableOpacity>
               )}
 
-              {/* Edit Trip */}
+              {/* Edit Trip Details */}
               {canEditTrip && (
                 <TouchableOpacity
                   style={styles.settingRow}
-                  onPress={() => Alert.alert('Edit Trip', 'Edit trip form coming in next phase.')}
+                  onPress={() => setEditTripModalVisible(true)}
                   activeOpacity={0.7}
                 >
                   <View style={styles.settingIconContainer}>
@@ -239,6 +259,23 @@ export const TripSettingsModal: React.FC<TripSettingsModalProps> = ({
           setRolePermScreenVisible(false);
           onRefresh();
         }}
+        data={data}
+        onRefresh={onRefresh}
+      />
+
+      {/* Room Notifications Modal */}
+      <RoomNotificationsModal
+        visible={notificationsModalVisible}
+        onClose={() => setNotificationsModalVisible(false)}
+        roomId={room._id}
+        initialNotifications={membership?.notifications}
+        onRefresh={onRefresh}
+      />
+
+      {/* Edit Trip Details Modal */}
+      <EditTripModal
+        visible={editTripModalVisible}
+        onClose={() => setEditTripModalVisible(false)}
         data={data}
         onRefresh={onRefresh}
       />

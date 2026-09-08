@@ -23,6 +23,13 @@ const roomMemberSchema = new mongoose.Schema(
       type: Date,
       default: Date.now,
     },
+    notifications: {
+      muted: { type: Boolean, default: false },
+      chat: { type: Boolean, default: true },
+      expenses: { type: Boolean, default: true },
+      itinerary: { type: Boolean, default: true },
+      gallery: { type: Boolean, default: true },
+    },
   },
   { timestamps: true }
 );
