@@ -7,29 +7,52 @@ import {
   Dimensions,
   Platform,
 } from 'react-native';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { Colors, Shadows } from '../../constants/theme';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Svg, Path, Circle } from 'react-native-svg';
+import { Shadows } from '../../constants/theme';
+import { RoamieLogo } from './RoamieLogo';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 
-export const HeroSection = () => {
+interface HeroSectionProps {
+  children?: React.ReactNode;
+}
+
+export const HeroSection: React.FC<HeroSectionProps> = ({ children }) => {
   return (
     <View style={styles.container}>
-      {/* Flight Path with Paper Airplane */}
-      <View style={styles.flightPathContainer}>
-        <View style={styles.dashedCurve} />
-        <View style={styles.airplaneWrapper}>
-          <MaterialCommunityIcons
-            name="airplane"
-            size={24}
-            color={Colors.navy.dark}
-            style={styles.airplaneIcon}
+      {/* Topo Lines & Soft Pin Watermark in Background */}
+      <View style={styles.topoOverlay} pointerEvents="none">
+        <Svg width={width} height={260} viewBox={`0 0 ${width} 260`} fill="none">
+          {/* Top-left subtle location pin watermark */}
+          <Path
+            d="M 28 42 C 22 42, 16 48, 16 55 C 16 65, 28 76, 28 76 C 28 76, 40 65, 40 55 C 40 48, 34 42, 28 42 Z"
+            fill="#D97706"
+            opacity={0.32}
           />
-        </View>
+          <Circle cx="28" cy="55" r="4" fill="#F6EDE2" opacity={0.85} />
+
+          {/* Faint contour waves */}
+          <Path
+            d={`M -30 70 Q ${width * 0.3} 35, ${width * 0.6} 80 T ${width + 30} 55`}
+            stroke="#D2BBA0"
+            strokeWidth="0.8"
+            strokeDasharray="4,8"
+            opacity={0.32}
+          />
+          <Path
+            d={`M -20 125 Q ${width * 0.35} 85, ${width * 0.72} 135 T ${width + 40} 110`}
+            stroke="#D2BBA0"
+            strokeWidth="0.8"
+            strokeDasharray="4,9"
+            opacity={0.25}
+          />
+        </Svg>
       </View>
 
-      {/* Top Left Polaroid: Camper Van */}
-      <View style={[styles.polaroidWrapper, styles.polaroidLeft]}>
+      {/* Side Polaroid Photos — positioned on outer edges so they never overlap text */}
+      {/* 1. Left Polaroid: Van in Mountains */}
+      <View style={[styles.polaroidWrapper, styles.polaroidTopLeft]}>
         <View style={styles.tape} />
         <View style={styles.polaroidCard}>
           <Image
@@ -40,7 +63,7 @@ export const HeroSection = () => {
         </View>
       </View>
 
-      {/* Top Right Polaroid: Beach Jeep */}
+      {/* 2. Top-Right Polaroid: Beach & Jeep */}
       <View style={[styles.polaroidWrapper, styles.polaroidTopRight]}>
         <View style={styles.tape} />
         <View style={styles.polaroidCard}>
@@ -52,7 +75,7 @@ export const HeroSection = () => {
         </View>
       </View>
 
-      {/* Middle Right Polaroid: Sunset Friends */}
+      {/* 3. Mid-Right Polaroid: Sunset Friends */}
       <View style={[styles.polaroidWrapper, styles.polaroidMidRight]}>
         <View style={styles.tape} />
         <View style={styles.polaroidCard}>
@@ -64,16 +87,10 @@ export const HeroSection = () => {
         </View>
       </View>
 
-      {/* Brand Logo & Header */}
+      {/* Center Brand Header: Logo + Tagline + Subtitle */}
       <View style={styles.brandHeader}>
-        {/* Roamie Logo with Pin Dot */}
-        <View style={styles.logoRow}>
-          <Text style={styles.logoText}>Roam</Text>
-          <View style={styles.dotContainer}>
-            <View style={styles.pinDot} />
-            <Text style={styles.logoText}>ie</Text>
-          </View>
-        </View>
+        {/* Roamie Logo (includes paper plane and orange pin on 'i') */}
+        <RoamieLogo width={Math.min(width * 0.48, 195)} />
 
         {/* Tagline */}
         <Text style={styles.tagline}>
@@ -82,17 +99,31 @@ export const HeroSection = () => {
 
         {/* Subtitle */}
         <Text style={styles.subtitle}>
-          The all-in-one space to plan trips, chat with your crew, manage plans, track expenses and save places.
+          The all-in-one space to plan trips,{'\n'}
+          chat with your crew, manage plans,{'\n'}
+          track expenses and save places.
         </Text>
       </View>
 
-      {/* Hero Backpackers Photo */}
-      <View style={styles.heroImageWrapper}>
+      {/* Continuous Hero Travelers & Canyon Cliff Landscape extending to bottom */}
+      <View style={styles.landscapeWrapper}>
         <Image
-          source={require('../../../assets/images/hero_travelers.jpg')}
-          style={styles.heroImage}
+          source={require('../../../assets/images/hero_travelers_tall.jpg')}
+          style={styles.landscapeImage}
           resizeMode="cover"
         />
+        {/* Soft top gradient to blend sky seamlessly into parchment */}
+        <LinearGradient
+          colors={['#F6EDE2', 'rgba(246, 237, 226, 0.75)', 'rgba(246, 237, 226, 0.25)', 'transparent']}
+          locations={[0, 0.25, 0.6, 1.0]}
+          style={styles.landscapeTopFade}
+        />
+        {/* Emerged Action Card placed directly over the lower cliff rocks */}
+        {children && (
+          <View style={styles.cardOverlay}>
+            {children}
+          </View>
+        )}
       </View>
     </View>
   );
@@ -100,147 +131,119 @@ export const HeroSection = () => {
 
 const styles = StyleSheet.create({
   container: {
-    paddingTop: 16,
-    paddingHorizontal: 20,
-    alignItems: 'center',
+    width: width,
+    backgroundColor: '#F6EDE2',
     position: 'relative',
     overflow: 'hidden',
+    flex: 1,
   },
-  flightPathContainer: {
+  topoOverlay: {
     position: 'absolute',
-    top: 24,
-    right: 85,
-    zIndex: 2,
-  },
-  dashedCurve: {
-    position: 'absolute',
-    top: 15,
-    right: 18,
-    width: 140,
-    height: 35,
-    borderTopWidth: 2,
-    borderRightWidth: 2,
-    borderColor: Colors.navy.dark,
-    borderStyle: 'dashed',
-    borderRadius: 35,
-    opacity: 0.5,
-    transform: [{ rotate: '-15deg' }],
-  },
-  airplaneWrapper: {
-    transform: [{ rotate: '-35deg' }],
-  },
-  airplaneIcon: {
-    opacity: 0.85,
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 260,
+    zIndex: 1,
   },
   polaroidWrapper: {
     position: 'absolute',
-    zIndex: 3,
+    zIndex: 10,
   },
-  polaroidLeft: {
-    top: 60,
-    left: -14,
-    transform: [{ rotate: '-12deg' }],
+  polaroidTopLeft: {
+    top: 135,
+    left: -24,
+    transform: [{ rotate: '-11deg' }],
   },
   polaroidTopRight: {
-    top: 35,
-    right: -18,
-    transform: [{ rotate: '12deg' }],
+    top: 75,
+    right: -24,
+    transform: [{ rotate: '10deg' }],
   },
   polaroidMidRight: {
-    top: 175,
-    right: -20,
-    transform: [{ rotate: '15deg' }],
+    top: 228,
+    right: -22,
+    transform: [{ rotate: '13deg' }],
   },
   tape: {
     position: 'absolute',
-    top: -8,
+    top: -7,
     alignSelf: 'center',
-    width: 32,
-    height: 14,
-    backgroundColor: '#EAD7B8',
-    opacity: 0.8,
-    zIndex: 10,
-    transform: [{ rotate: '3deg' }],
+    width: 26,
+    height: 12,
+    backgroundColor: '#E6D2B5',
+    opacity: 0.92,
+    zIndex: 15,
+    transform: [{ rotate: '2deg' }],
     borderRadius: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.12,
+    shadowRadius: 2,
   },
   polaroidCard: {
-    backgroundColor: '#FFF',
-    padding: 5,
-    paddingBottom: 14,
+    backgroundColor: '#FFFFFF',
+    padding: 4,
+    paddingBottom: 13,
     borderRadius: 4,
     ...Shadows.polaroid,
   },
   polaroidImage: {
-    width: 82,
-    height: 72,
+    width: 66,
+    height: 56,
     borderRadius: 2,
   },
   brandHeader: {
     alignItems: 'center',
-    marginTop: 24,
-    marginBottom: 20,
-    paddingHorizontal: 16,
+    paddingTop: Platform.OS === 'web' ? 44 : (Platform.OS === 'ios' ? 32 : 28),
+    paddingHorizontal: 48, // Generous padding so text never touches outer polaroids
     zIndex: 5,
   },
-  logoRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-  },
-  logoText: {
-    fontSize: 54,
-    fontFamily: Platform.select({ ios: 'Snell Roundhand', default: 'serif' }),
-    fontWeight: '800',
-    color: Colors.navy.dark,
-    letterSpacing: -1,
-  },
-  dotContainer: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    position: 'relative',
-  },
-  pinDot: {
-    position: 'absolute',
-    top: 8,
-    left: 2,
-    width: 13,
-    height: 13,
-    borderRadius: 7,
-    backgroundColor: Colors.orange.primary,
-    borderWidth: 2,
-    borderColor: '#FFF',
-  },
   tagline: {
-    fontSize: 22,
+    fontSize: 19,
     fontWeight: '700',
-    color: Colors.navy.dark,
-    marginTop: 6,
+    color: '#0C1B33',
+    marginTop: 14,
     textAlign: 'center',
+    letterSpacing: -0.3,
   },
   taglineHighlight: {
-    color: Colors.orange.primary,
+    color: '#EA580C',
   },
   subtitle: {
-    fontSize: 14,
-    lineHeight: 20,
-    color: Colors.text.secondary,
+    fontSize: 13,
+    lineHeight: 19.5,
+    color: '#475569',
     textAlign: 'center',
     marginTop: 10,
-    maxWidth: width * 0.76,
+    maxWidth: width * 0.70,
+    fontWeight: '400',
   },
-  heroImageWrapper: {
-    width: width - 36,
-    height: 220,
-    borderRadius: 22,
-    overflow: 'hidden',
-    marginTop: 6,
-    marginBottom: -16,
-    zIndex: 4,
-    borderWidth: 3,
-    borderColor: '#FFFFFF',
-    ...Shadows.card,
+  landscapeWrapper: {
+    width: width,
+    flex: 1,
+    marginTop: -16,
+    position: 'relative',
+    zIndex: 2,
   },
-  heroImage: {
+  landscapeImage: {
     width: '100%',
     height: '100%',
   },
+  cardOverlay: {
+    position: 'absolute',
+    top: 285,
+    left: 0,
+    right: 0,
+    zIndex: 10,
+  },
+  landscapeTopFade: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 65,
+    zIndex: 3,
+  },
 });
+
+

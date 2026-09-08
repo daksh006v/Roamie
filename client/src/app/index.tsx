@@ -1,21 +1,16 @@
 import React, { useState } from 'react';
 import {
   View,
-  ScrollView,
   StyleSheet,
-  SafeAreaView,
-  Dimensions,
   StatusBar,
   Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../constants/theme';
 import { HeroSection } from '../components/welcome/HeroSection';
-import { ActionButtons } from '../components/welcome/ActionButtons';
-import { FeaturesSection } from '../components/welcome/FeaturesSection';
+import { WelcomeCard } from '../components/welcome/WelcomeCard';
 import { AuthModal } from '../components/auth/AuthModal';
 import { useAuth } from '../context/AuthContext';
-
-const { width, height } = Dimensions.get('window');
 
 export default function WelcomeScreen() {
   const [authModalVisible, setAuthModalVisible] = useState(false);
@@ -33,26 +28,17 @@ export default function WelcomeScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <StatusBar barStyle="dark-content" backgroundColor={Colors.parchment.base} />
-      <ScrollView
-        style={styles.container}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-        bounces={false}
-      >
-        {/* Top Parchment Map & Hero Section */}
-        <HeroSection />
-
-        {/* Action Buttons: Log In & Create Account */}
-        <ActionButtons
-          onLoginPress={handleOpenLogin}
-          onRegisterPress={handleOpenRegister}
-        />
-
-        {/* Bottom Dark Navy Features & Campfire Section */}
-        <FeaturesSection />
-      </ScrollView>
+      <View style={styles.container}>
+        {/* Top: Parchment Map Background + Logo + Tagline + Continuous Travelers Landscape with Emerged Action Card */}
+        <HeroSection>
+          <WelcomeCard
+            onLoginPress={handleOpenLogin}
+            onRegisterPress={handleOpenRegister}
+          />
+        </HeroSection>
+      </View>
 
       {/* Auth Modal (Login / Sign Up) */}
       <AuthModal
@@ -76,7 +62,5 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.parchment.base,
   },
-  scrollContent: {
-    paddingBottom: 0,
-  },
 });
+
