@@ -57,6 +57,23 @@ export const Colors = {
     info: '#3B82F6',
   },
 
+  // Rooms Page Palette — Travel Journal / Map / Forest
+  rooms: {
+    background: '#F4EBDD',        // 60% — Warm parchment canvas
+    forestGreen: '#243C32',       // 20% — Primary dark: headers, nav, text
+    burntOrange: '#C96A25',       // 10% — Action/accent color
+    amberOrange: '#E18A3A',       // Warm amber highlights
+    cardCream: '#F8F1E5',         // Card backgrounds
+    greige: '#DED6C9',            // Muted UI elements
+    darkText: '#17251F',          // Main text (very dark green-black)
+    mutedText: '#59615A',         // Secondary text (muted charcoal-green)
+    sandBorder: '#D5C5AE',        // Borders / dividers
+    charcoalOverlay: '#1E302A',   // Photo overlays
+    activeGreen: '#648A62',       // "Active" status badge
+    planningOrange: '#C97935',    // "Planning" status badge
+    sage: '#5F745F',              // Sage / muted olive neutrals
+  },
+
   // System light/dark compatibility
   light: {
     text: '#1E293B',

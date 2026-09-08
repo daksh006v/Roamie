@@ -1,11 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   StyleSheet,
   StatusBar,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { Colors } from '../constants/theme';
 import { HeroSection } from '../components/welcome/HeroSection';
 import { WelcomeCard } from '../components/welcome/WelcomeCard';
@@ -15,7 +17,15 @@ import { useAuth } from '../context/AuthContext';
 export default function WelcomeScreen() {
   const [authModalVisible, setAuthModalVisible] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
-  const { user } = useAuth();
+  const { user, isLoading } = useAuth();
+  const router = useRouter();
+
+  // If user is already authenticated, navigate directly to rooms
+  useEffect(() => {
+    if (!isLoading && user) {
+      router.replace('/rooms');
+    }
+  }, [user, isLoading]);
 
   const handleOpenLogin = () => {
     setAuthMode('login');
@@ -26,6 +36,14 @@ export default function WelcomeScreen() {
     setAuthMode('register');
     setAuthModalVisible(true);
   };
+
+  if (isLoading) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color={Colors.orange.primary} />
+      </View>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
@@ -46,7 +64,8 @@ export default function WelcomeScreen() {
         initialMode={authMode}
         onClose={() => setAuthModalVisible(false)}
         onSuccess={() => {
-          console.log('Authenticated successfully!');
+          setAuthModalVisible(false);
+          router.replace('/rooms');
         }}
       />
     </SafeAreaView>

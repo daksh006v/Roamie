@@ -1,17 +1,37 @@
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 
-// In Expo development on physical devices, localhost points to the device itself.
-// You can set your machine's LAN IP or use default localhost for simulator/web.
-const DEFAULT_API_URL = Platform.select({
-  android: 'http://10.0.2.2:5000/api',
-  ios: 'http://localhost:5000/api',
-  web: 'http://localhost:5000/api',
-  default: 'http://localhost:5000/api',
-});
+/**
+ * Dynamically resolves the development API URL:
+ * 1. Checks EXPO_PUBLIC_API_URL environment variable.
+ * 2. On Web, defaults to http://localhost:5000/api.
+ * 3. On mobile devices (Expo Go / physical phone / emulator), extracts the
+ *    packager host IP from Constants.expoConfig?.hostUri so phones on Wi-Fi
+ *    can reach the backend server on the development machine.
+ * 4. Falls back to the machine's LAN IP (192.168.1.93).
+ */
+const getBaseUrl = (): string => {
+  if (process.env.EXPO_PUBLIC_API_URL) {
+    return process.env.EXPO_PUBLIC_API_URL;
+  }
+  if (Platform.OS === 'web') {
+    return 'http://localhost:5000/api';
+  }
+  const hostUri =
+    Constants.expoConfig?.hostUri ||
+    (Constants as any).manifest2?.extra?.expoGo?.debuggerHost;
+  if (hostUri) {
+    const ip = hostUri.split(':')[0];
+    if (ip && ip !== 'localhost' && ip !== '127.0.0.1') {
+      return `http://${ip}:5000/api`;
+    }
+  }
+  return 'http://192.168.1.93:5000/api';
+};
 
-export const API_URL = process.env.EXPO_PUBLIC_API_URL || DEFAULT_API_URL;
+export const API_URL = getBaseUrl();
 
 const api = axios.create({
   baseURL: API_URL,
