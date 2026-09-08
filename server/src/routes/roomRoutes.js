@@ -7,6 +7,8 @@ const {
   previewRoomByInviteCode,
   joinRoom,
   inviteContact,
+  updateMemberRole,
+  updateRoomPermissions,
   updateRoom,
   leaveRoom,
   deleteRoom,
@@ -20,6 +22,7 @@ const { protect } = require('../middlewares/authMiddleware');
 const {
   requireRoomMembership,
   requireRoomOwner,
+  requireRoomAdminOrOwner,
 } = require('../middlewares/roomAuthMiddleware');
 
 // All room routes require authentication
@@ -41,8 +44,11 @@ router.use('/:roomId/places', placeRoutes);
 
 router.route('/:id')
   .get(requireRoomMembership, getRoomById)
-  .put(requireRoomMembership, requireRoomOwner, updateRoom)
-  .delete(requireRoomMembership, requireRoomOwner, deleteRoom);
+  .put(requireRoomMembership, updateRoom)
+  .delete(requireRoomMembership, deleteRoom);
+
+router.put('/:id/members/:memberId/role', requireRoomMembership, updateMemberRole);
+router.put('/:id/permissions', requireRoomMembership, updateRoomPermissions);
 
 router.post('/:id/invite', requireRoomMembership, inviteContact);
 router.post('/:id/leave', requireRoomMembership, leaveRoom);

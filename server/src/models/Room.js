@@ -45,6 +45,21 @@ const roomSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    permissions: {
+      members: {
+        canAddItinerary: { type: Boolean, default: true },
+        canAddExpenses: { type: Boolean, default: true },
+        canUploadMedia: { type: Boolean, default: true },
+        canAddPlaces: { type: Boolean, default: true },
+        canInvite: { type: Boolean, default: true },
+      },
+      admins: {
+        canEditTripInfo: { type: Boolean, default: true },
+        canManageRoles: { type: Boolean, default: true },
+        canEndTrip: { type: Boolean, default: true },
+        canDeleteRoom: { type: Boolean, default: false },
+      },
+    },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',

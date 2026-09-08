@@ -167,8 +167,28 @@ const getRoomById = async (req, res) => {
       progressPercentage = 100;
     }
 
+    // Ensure permissions object exists
+    const roomObj = room.toObject();
+    if (!roomObj.permissions) {
+      roomObj.permissions = {
+        members: {
+          canAddItinerary: true,
+          canAddExpenses: true,
+          canUploadMedia: true,
+          canAddPlaces: true,
+          canInvite: true,
+        },
+        admins: {
+          canEditTripInfo: true,
+          canManageRoles: true,
+          canEndTrip: true,
+          canDeleteRoom: false,
+        },
+      };
+    }
+
     return sendSuccess(res, 'Room details fetched', {
-      room,
+      room: roomObj,
       membership: req.roomMember,
       members,
       inviteDetails: {
@@ -374,9 +394,129 @@ const inviteContact = async (req, res) => {
   }
 };
 
-// @desc    Update Room (Owner only)
-// @route   PUT /api/rooms/:id
+// @desc    Update Member Role (Owner or Admin with permission)
+// @route   PUT /api/rooms/:id/members/:memberId/role
+// @access  Private
+const updateMemberRole = async (req, res) => {
+  try {
+    const roomId = req.params.id;
+    const { memberId } = req.params;
+    const { role } = req.body;
+
+    if (!['admin', 'member'].includes(role)) {
+      return sendError(res, 'Role must be either "admin" or "member"', 400);
+    }
+
+    const room = await Room.findById(roomId);
+    if (!room) {
+      return sendError(res, 'Room not found', 404);
+    }
+
+    // Check caller's role in this room
+    const callerMembership = req.roomMember || (await RoomMember.findOne({ roomId, userId: req.user._id }));
+    if (!callerMembership) {
+      return sendError(res, 'Access denied', 403);
+    }
+
+    const isOwner = callerMembership.role === 'owner';
+    const isAdmin = callerMembership.role === 'admin';
+    const adminCanManage = room.permissions?.admins?.canManageRoles ?? true;
+
+    if (!isOwner && !(isAdmin && adminCanManage)) {
+      return sendError(res, 'Access denied: Only trip Owner or authorized Admins can manage roles', 403);
+    }
+
+    // Find target member
+    const targetMember = await RoomMember.findOne({
+      _id: memberId,
+      roomId,
+    }).populate('userId', 'name email avatar');
+
+    if (!targetMember) {
+      return sendError(res, 'Target member not found in this room', 404);
+    }
+
+    // Cannot change owner's role
+    if (targetMember.role === 'owner') {
+      return sendError(res, 'The room Owner role cannot be modified', 400);
+    }
+
+    // Admins cannot demote other admins; only owner can demote admins
+    if (!isOwner && targetMember.role === 'admin' && role === 'member') {
+      return sendError(res, 'Only the room Owner can demote an Admin', 403);
+    }
+
+    targetMember.role = role;
+    await targetMember.save();
+
+    // Create system message in chat
+    const actionText =
+      role === 'admin'
+        ? `${req.user.name} promoted ${targetMember.userId?.name || 'a member'} to Admin 🛡️`
+        : `${req.user.name} set ${targetMember.userId?.name || 'a member'}'s role to Member 👤`;
+
+    await Message.create({
+      roomId,
+      senderId: req.user._id,
+      messageType: 'system',
+      systemAction: actionText,
+    });
+
+    return sendSuccess(res, `Role updated to ${role} successfully`, {
+      member: targetMember,
+    });
+  } catch (error) {
+    return sendError(res, error.message, 500);
+  }
+};
+
+// @desc    Update Room Role Permissions (Owner only)
+// @route   PUT /api/rooms/:id/permissions
 // @access  Private (Owner only)
+const updateRoomPermissions = async (req, res) => {
+  try {
+    const roomId = req.params.id;
+    const { permissions } = req.body;
+
+    if (!permissions) {
+      return sendError(res, 'Permissions object is required', 400);
+    }
+
+    const room = await Room.findById(roomId);
+    if (!room) {
+      return sendError(res, 'Room not found', 404);
+    }
+
+    const callerMembership = req.roomMember || (await RoomMember.findOne({ roomId, userId: req.user._id }));
+    if (!callerMembership || callerMembership.role !== 'owner') {
+      return sendError(res, 'Access denied: Only the room Owner can configure role permissions', 403);
+    }
+
+    // Merge new permissions
+    room.permissions = {
+      members: {
+        ...(room.permissions?.members?.toObject?.() || room.permissions?.members || {}),
+        ...(permissions.members || {}),
+      },
+      admins: {
+        ...(room.permissions?.admins?.toObject?.() || room.permissions?.admins || {}),
+        ...(permissions.admins || {}),
+      },
+    };
+
+    await room.save();
+
+    return sendSuccess(res, 'Role permissions updated successfully', {
+      permissions: room.permissions,
+    });
+  } catch (error) {
+    return sendError(res, error.message, 500);
+  }
+};
+
+// @desc    Update Room (Owner or authorized Admin)
+// @route   PUT /api/rooms/:id
+// @access  Private (Owner or authorized Admin)
 const updateRoom = async (req, res) => {
   try {
     const { name, destination, startDate, endDate, description, coverImage, status, isItineraryLocked } = req.body;
@@ -384,6 +524,28 @@ const updateRoom = async (req, res) => {
 
     if (!room) {
       return sendError(res, 'Room not found', 404);
+    }
+
+    const callerMembership = req.roomMember || (await RoomMember.findOne({ roomId: room._id, userId: req.user._id }));
+    if (!callerMembership) {
+      return sendError(res, 'Access denied', 403);
+    }
+
+    const isOwner = callerMembership.role === 'owner';
+    const isAdmin = callerMembership.role === 'admin';
+    const adminCanEdit = room.permissions?.admins?.canEditTripInfo ?? true;
+    const adminCanEnd = room.permissions?.admins?.canEndTrip ?? true;
+
+    if (!isOwner) {
+      if (!isAdmin) {
+        return sendError(res, 'Access denied: Room Owner or Admin privileges required', 403);
+      }
+      if (status === 'completed' && !adminCanEnd) {
+        return sendError(res, 'Access denied: Admins are not permitted to end this trip', 403);
+      }
+      if (!adminCanEdit && (name || destination || startDate || endDate || description || coverImage)) {
+        return sendError(res, 'Access denied: Admins are not permitted to edit trip details', 403);
+      }
     }
 
     if (name) room.name = name.trim();
@@ -434,12 +596,30 @@ const leaveRoom = async (req, res) => {
   }
 };
 
-// @desc    Delete Room & Cascade Data (Owner only)
+// @desc    Delete Room & Cascade Data (Owner or authorized Admin)
 // @route   DELETE /api/rooms/:id
-// @access  Private (Owner only)
+// @access  Private (Owner or authorized Admin)
 const deleteRoom = async (req, res) => {
   try {
     const roomId = req.params.id;
+    const room = await Room.findById(roomId);
+
+    if (!room) {
+      return sendError(res, 'Room not found', 404);
+    }
+
+    const callerMembership = req.roomMember || (await RoomMember.findOne({ roomId, userId: req.user._id }));
+    if (!callerMembership) {
+      return sendError(res, 'Access denied', 403);
+    }
+
+    const isOwner = callerMembership.role === 'owner';
+    const isAdmin = callerMembership.role === 'admin';
+    const adminCanDelete = room.permissions?.admins?.canDeleteRoom ?? false;
+
+    if (!isOwner && !(isAdmin && adminCanDelete)) {
+      return sendError(res, 'Access denied: Only the room Owner can delete this room', 403);
+    }
 
     await Room.findByIdAndDelete(roomId);
     await RoomMember.deleteMany({ roomId });
@@ -463,6 +643,8 @@ module.exports = {
   previewRoomByInviteCode,
   joinRoom,
   inviteContact,
+  updateMemberRole,
+  updateRoomPermissions,
   updateRoom,
   leaveRoom,
   deleteRoom,

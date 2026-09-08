@@ -16,6 +16,7 @@ import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import { Colors } from '../../constants/theme';
+import { TripSettingsModal } from './TripSettingsModal';
 import api from '../../services/api';
 
 const { width } = Dimensions.get('window');
@@ -39,6 +40,22 @@ const getMemberColor = (name: string): string => {
   return palette[Math.abs(hash) % palette.length];
 };
 
+export interface RoomPermissions {
+  members: {
+    canAddItinerary: boolean;
+    canAddExpenses: boolean;
+    canUploadMedia: boolean;
+    canAddPlaces: boolean;
+    canInvite: boolean;
+  };
+  admins: {
+    canEditTripInfo: boolean;
+    canManageRoles: boolean;
+    canEndTrip: boolean;
+    canDeleteRoom: boolean;
+  };
+}
+
 export interface RoomDetailsData {
   room: {
     _id: string;
@@ -51,13 +68,14 @@ export interface RoomDetailsData {
     status: 'planning' | 'active' | 'completed';
     inviteCode: string;
     createdBy?: any;
+    permissions?: RoomPermissions;
   };
   membership: {
-    role: 'owner' | 'member';
+    role: 'owner' | 'admin' | 'member';
   };
   members: Array<{
     _id: string;
-    role: 'owner' | 'member';
+    role: 'owner' | 'admin' | 'member';
     userId: {
       _id: string;
       name: string;
@@ -91,8 +109,11 @@ export const AboutTab: React.FC<AboutTabProps> = ({ data, onRefresh }) => {
   const router = useRouter();
   const { room, membership, members, stats, currentUserId } = data;
   const isOwner = membership?.role === 'owner';
+  const isAdmin = membership?.role === 'admin';
+  const isAdminOrOwner = isOwner || isAdmin;
 
   const [inviteModalVisible, setInviteModalVisible] = useState(false);
+  const [settingsModalVisible, setSettingsModalVisible] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
 
   // Cover image source
@@ -176,7 +197,7 @@ export const AboutTab: React.FC<AboutTabProps> = ({ data, onRefresh }) => {
 
           <TouchableOpacity
             style={styles.heroIconButton}
-            onPress={() => setInviteModalVisible(true)}
+            onPress={() => setSettingsModalVisible(true)}
             activeOpacity={0.7}
           >
             <Feather name="more-horizontal" size={22} color="#FFFFFF" />
@@ -355,7 +376,7 @@ export const AboutTab: React.FC<AboutTabProps> = ({ data, onRefresh }) => {
         <View style={styles.membersSectionContainer}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Members ({members.length})</Text>
-            <TouchableOpacity onPress={() => setInviteModalVisible(true)}>
+            <TouchableOpacity onPress={() => setSettingsModalVisible(true)}>
               <Text style={styles.manageBtnText}>Manage</Text>
             </TouchableOpacity>
           </View>
@@ -369,6 +390,7 @@ export const AboutTab: React.FC<AboutTabProps> = ({ data, onRefresh }) => {
               const isUser = m.userId?._id === currentUserId;
               const displayName = isUser ? 'You' : m.userId?.name || 'Member';
               const isMemberOwner = m.role === 'owner';
+              const isMemberAdmin = m.role === 'admin';
               const initials = (m.userId?.name || 'U')
                 .split(' ')
                 .map((n) => n[0])
@@ -392,6 +414,11 @@ export const AboutTab: React.FC<AboutTabProps> = ({ data, onRefresh }) => {
                         <Text style={styles.crownEmoji}>👑</Text>
                       </View>
                     )}
+                    {isMemberAdmin && (
+                      <View style={styles.crownBadge}>
+                        <Text style={styles.crownEmoji}>🛡️</Text>
+                      </View>
+                    )}
                   </View>
 
                   <Text style={styles.memberName} numberOfLines={1}>
@@ -401,6 +428,11 @@ export const AboutTab: React.FC<AboutTabProps> = ({ data, onRefresh }) => {
                   {isMemberOwner && (
                     <View style={styles.ownerPill}>
                       <Text style={styles.ownerPillText}>Owner</Text>
+                    </View>
+                  )}
+                  {isMemberAdmin && (
+                    <View style={[styles.ownerPill, { backgroundColor: '#E8DCC8' }]}>
+                      <Text style={[styles.ownerPillText, { color: '#7A5C2E' }]}>Admin</Text>
                     </View>
                   )}
                 </View>
@@ -425,7 +457,7 @@ export const AboutTab: React.FC<AboutTabProps> = ({ data, onRefresh }) => {
 
           <TouchableOpacity
             style={styles.actionRow}
-            onPress={() => Alert.alert('Trip Settings', 'Settings panel coming in next phase.')}
+            onPress={() => setSettingsModalVisible(true)}
             activeOpacity={0.7}
           >
             <Feather name="settings" size={18} color={Colors.rooms.darkText} style={styles.actionIcon} />
@@ -500,6 +532,14 @@ export const AboutTab: React.FC<AboutTabProps> = ({ data, onRefresh }) => {
           </View>
         </View>
       </Modal>
+
+      {/* Trip Settings Modal */}
+      <TripSettingsModal
+        visible={settingsModalVisible}
+        onClose={() => setSettingsModalVisible(false)}
+        data={data}
+        onRefresh={onRefresh}
+      />
     </ScrollView>
   );
 };

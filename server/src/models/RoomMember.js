@@ -16,7 +16,7 @@ const roomMemberSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ['owner', 'member'],
+      enum: ['owner', 'admin', 'member'],
       default: 'member',
     },
     joinedAt: {

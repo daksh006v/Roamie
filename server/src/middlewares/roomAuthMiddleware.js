@@ -52,7 +52,31 @@ const requireRoomOwner = async (req, res, next) => {
   }
 };
 
+/**
+ * Ensures the authenticated user is an Admin or Owner of the room
+ */
+const requireRoomAdminOrOwner = async (req, res, next) => {
+  try {
+    const roomId = req.params.roomId || req.params.id || req.body.roomId;
+
+    const member = req.roomMember || (await RoomMember.findOne({
+      roomId,
+      userId: req.user._id,
+    }));
+
+    if (!member || (member.role !== 'owner' && member.role !== 'admin')) {
+      return sendError(res, 'Access denied: Admin or Owner privileges required', 403);
+    }
+
+    req.roomMember = member;
+    next();
+  } catch (error) {
+    return sendError(res, `Admin authorization failed: ${error.message}`, 500);
+  }
+};
+
 module.exports = {
   requireRoomMembership,
   requireRoomOwner,
+  requireRoomAdminOrOwner,
 };
