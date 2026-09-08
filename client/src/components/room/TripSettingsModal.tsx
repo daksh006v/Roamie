@@ -39,35 +39,10 @@ export const TripSettingsModal: React.FC<TripSettingsModalProps> = ({
   const [rolePermScreenVisible, setRolePermScreenVisible] = useState(false);
 
   const adminCanEdit = room.permissions?.admins?.canEditTripInfo ?? true;
-  const adminCanEnd = room.permissions?.admins?.canEndTrip ?? true;
   const adminCanDelete = room.permissions?.admins?.canDeleteRoom ?? false;
 
   const canEditTrip = isOwner || (isAdmin && adminCanEdit);
-  const canEndTrip = isOwner || (isAdmin && adminCanEnd);
   const canDeleteRoom = isOwner || (isAdmin && adminCanDelete);
-
-  const handleEndTrip = () => {
-    Alert.alert(
-      'End Trip',
-      `Are you sure you want to mark "${room.name}" as completed?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'End Trip',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await api.put(`/rooms/${room._id}`, { status: 'completed' });
-              onRefresh();
-              onClose();
-            } catch (err: any) {
-              Alert.alert('Error', err.response?.data?.message || 'Could not end the trip.');
-            }
-          },
-        },
-      ]
-    );
-  };
 
   const handleLockItinerary = async () => {
     try {
@@ -78,6 +53,29 @@ export const TripSettingsModal: React.FC<TripSettingsModalProps> = ({
     } catch (err: any) {
       Alert.alert('Error', err.response?.data?.message || 'Could not toggle itinerary lock.');
     }
+  };
+
+  const handleLeaveRoom = () => {
+    Alert.alert(
+      'Leave Room',
+      `Are you sure you want to leave "${room.name}"? You will lose access until re-invited.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Leave Room',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await api.post(`/rooms/${room._id}/leave`);
+              onClose();
+              router.replace('/rooms');
+            } catch (err: any) {
+              Alert.alert('Error', err.response?.data?.message || 'Could not leave the room.');
+            }
+          },
+        },
+      ]
+    );
   };
 
   const handleDeleteRoom = () => {
@@ -190,28 +188,10 @@ export const TripSettingsModal: React.FC<TripSettingsModalProps> = ({
                 </TouchableOpacity>
               )}
 
-              {/* End Trip */}
-              {canEndTrip && room.status !== 'completed' && (
-                <TouchableOpacity
-                  style={styles.settingRow}
-                  onPress={handleEndTrip}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.settingIconContainer}>
-                    <Feather name="check-circle" size={18} color="#0D9488" />
-                  </View>
-                  <View style={styles.settingContent}>
-                    <Text style={styles.settingTitle}>End Trip</Text>
-                    <Text style={styles.settingSubtitle}>Mark this trip as completed & archive it</Text>
-                  </View>
-                  <Feather name="chevron-right" size={18} color={Colors.rooms.mutedText} />
-                </TouchableOpacity>
-              )}
-
-              {/* Danger Zone */}
-              {canDeleteRoom && (
-                <View style={styles.dangerSection}>
-                  <Text style={styles.dangerLabel}>Danger Zone</Text>
+              {/* Danger Zone: Delete Room (owner/authorized admin) or Leave Room (member) */}
+              <View style={styles.dangerSection}>
+                <Text style={styles.dangerLabel}>Danger Zone</Text>
+                {canDeleteRoom ? (
                   <TouchableOpacity
                     style={[styles.settingRow, styles.dangerRow]}
                     onPress={handleDeleteRoom}
@@ -228,8 +208,25 @@ export const TripSettingsModal: React.FC<TripSettingsModalProps> = ({
                     </View>
                     <Feather name="chevron-right" size={18} color={Colors.rooms.mutedText} />
                   </TouchableOpacity>
-                </View>
-              )}
+                ) : (
+                  <TouchableOpacity
+                    style={[styles.settingRow, styles.dangerRow]}
+                    onPress={handleLeaveRoom}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.settingIconContainer, { backgroundColor: '#FEF2F2' }]}>
+                      <Feather name="log-out" size={18} color="#DC2626" />
+                    </View>
+                    <View style={styles.settingContent}>
+                      <Text style={[styles.settingTitle, { color: '#DC2626' }]}>Leave Room</Text>
+                      <Text style={styles.settingSubtitle}>
+                        Leave this room and lose access
+                      </Text>
+                    </View>
+                    <Feather name="chevron-right" size={18} color={Colors.rooms.mutedText} />
+                  </TouchableOpacity>
+                )}
+              </View>
             </ScrollView>
           </View>
         </View>

@@ -189,14 +189,8 @@ export const RolePermissionsScreen: React.FC<RolePermissionsScreenProps> = ({
       icon: 'shield',
     },
     {
-      key: 'canEndTrip',
-      label: 'End / Complete Trip',
-      description: 'Mark the trip as completed',
-      icon: 'check-circle',
-    },
-    {
       key: 'canDeleteRoom',
-      label: 'Delete Trip',
+      label: 'Delete Room',
       description: 'Permanently remove this room',
       icon: 'trash-2',
     },

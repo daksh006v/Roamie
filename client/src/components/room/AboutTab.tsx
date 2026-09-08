@@ -147,14 +147,14 @@ export const AboutTab: React.FC<AboutTabProps> = ({ data, onRefresh }) => {
     }
   };
 
-  const handleLeaveTrip = () => {
+  const handleLeaveRoom = () => {
     Alert.alert(
-      'Leave Trip',
-      `Are you sure you want to leave "${room.name}"?`,
+      'Leave Room',
+      `Are you sure you want to leave "${room.name}"? You will lose access until re-invited.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Leave',
+          text: 'Leave Room',
           style: 'destructive',
           onPress: async () => {
             try {
@@ -162,6 +162,28 @@ export const AboutTab: React.FC<AboutTabProps> = ({ data, onRefresh }) => {
               router.replace('/rooms');
             } catch (err: any) {
               Alert.alert('Error', err.response?.data?.message || 'Could not leave room.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleDeleteRoom = () => {
+    Alert.alert(
+      'Delete Room',
+      `This will permanently delete "${room.name}" and all its data. This action cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete Room',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await api.delete(`/rooms/${room._id}`);
+              router.replace('/rooms');
+            } catch (err: any) {
+              Alert.alert('Error', err.response?.data?.message || 'Could not delete room.');
             }
           },
         },
@@ -467,15 +489,27 @@ export const AboutTab: React.FC<AboutTabProps> = ({ data, onRefresh }) => {
 
           <View style={styles.actionDivider} />
 
-          <TouchableOpacity
-            style={styles.actionRow}
-            onPress={handleLeaveTrip}
-            activeOpacity={0.7}
-          >
-            <Feather name="log-out" size={18} color="#DC2626" style={styles.actionIcon} />
-            <Text style={[styles.actionText, { color: '#DC2626' }]}>Leave Trip</Text>
-            <Feather name="chevron-right" size={18} color={Colors.rooms.mutedText} />
-          </TouchableOpacity>
+          {isOwner ? (
+            <TouchableOpacity
+              style={styles.actionRow}
+              onPress={handleDeleteRoom}
+              activeOpacity={0.7}
+            >
+              <Feather name="trash-2" size={18} color="#DC2626" style={styles.actionIcon} />
+              <Text style={[styles.actionText, { color: '#DC2626' }]}>Delete Room</Text>
+              <Feather name="chevron-right" size={18} color={Colors.rooms.mutedText} />
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={styles.actionRow}
+              onPress={handleLeaveRoom}
+              activeOpacity={0.7}
+            >
+              <Feather name="log-out" size={18} color="#DC2626" style={styles.actionIcon} />
+              <Text style={[styles.actionText, { color: '#DC2626' }]}>Leave Room</Text>
+              <Feather name="chevron-right" size={18} color={Colors.rooms.mutedText} />
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
