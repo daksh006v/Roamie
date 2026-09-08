@@ -9,7 +9,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { Colors } from '../constants/theme';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
@@ -68,7 +68,7 @@ export default function RoomsScreen() {
                   startDate: room.startDate,
                   endDate: room.endDate,
                   description: room.description,
-                  status: room.status || (room.userRole ? 'planning' : 'planning'),
+                  status: room.status || 'planning',
                   coverImage: room.coverImage,
                   members,
                 } as RoomData;
@@ -105,9 +105,11 @@ export default function RoomsScreen() {
     }
   }, []);
 
-  useEffect(() => {
-    fetchRooms();
-  }, [fetchRooms]);
+  useFocusEffect(
+    useCallback(() => {
+      fetchRooms();
+    }, [fetchRooms])
+  );
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -133,10 +135,8 @@ export default function RoomsScreen() {
   const getDisplayedRooms = (): any[] => {
     switch (activeTab) {
       case 'myRooms':
-        // Show active rooms first, then planning rooms
         return [...rooms.active, ...rooms.planning];
       case 'invites':
-        // Invites tab — will be wired to notifications/invites API later
         return [];
       case 'archived':
         return rooms.completed;
@@ -148,13 +148,11 @@ export default function RoomsScreen() {
   const displayedRooms = getDisplayedRooms();
 
   const handleRoomPress = (room: RoomData) => {
-    // Will navigate to room detail / 5-tab view in future steps
     console.log('Navigate to room:', room._id);
   };
 
   const handleCreateRoom = () => {
-    // Will navigate to Create Room form in future steps
-    console.log('Navigate to Create Room');
+    router.push('/create-room');
   };
 
   return (
