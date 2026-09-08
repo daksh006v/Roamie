@@ -148,7 +148,7 @@ export default function RoomsScreen() {
   const displayedRooms = getDisplayedRooms();
 
   const handleRoomPress = (room: RoomData) => {
-    console.log('Navigate to room:', room._id);
+    router.push({ pathname: '/room/[id]', params: { id: room._id } } as any);
   };
 
   const handleCreateRoom = () => {

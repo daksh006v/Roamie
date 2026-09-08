@@ -108,6 +108,7 @@ const styles = StyleSheet.create({
     width: 130,
     height: 44,
     alignSelf: 'flex-start',
+    marginLeft: -8,
   },
   avatar: {
     width: 42,

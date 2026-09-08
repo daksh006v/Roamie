@@ -88,28 +88,27 @@ export const RoomCard: React.FC<RoomCardProps> = ({ room, onPress }) => {
       activeOpacity={0.92}
       onPress={() => onPress(room)}
     >
-      {/* Dark green gradient background */}
-      <LinearGradient
-        colors={['#1E302A', '#243C32', '#2A4A3A']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.gradient}
-      >
-        {/* Cover image on the right side */}
-        <View style={styles.coverContainer}>
-          <Image
-            source={coverSource}
-            style={styles.coverImage}
-            resizeMode="cover"
-          />
-          {/* Left-side fade so text is readable over the image edge */}
-          <LinearGradient
-            colors={['#1E302A', 'rgba(30, 48, 42, 0.85)', 'rgba(30, 48, 42, 0.3)', 'transparent']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.coverFade}
-          />
-        </View>
+      <View style={styles.cardInner}>
+        {/* Full-bleed cover image across the whole card */}
+        <Image
+          source={coverSource}
+          style={styles.fullCoverImage}
+          resizeMode="cover"
+        />
+
+        {/* Directional gradient: opaque on the left for text readability, clear on the right so photo is bright and colorful */}
+        <LinearGradient
+          colors={[
+            'rgba(18, 28, 22, 0.9)',
+            'rgba(23, 37, 31, 0.72)',
+            'rgba(23, 37, 31, 0.25)',
+            'rgba(0, 0, 0, 0.04)',
+          ]}
+          locations={[0, 0.38, 0.68, 1]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={styles.coverGradientOverlay}
+        />
 
         {/* Status Badge */}
         <View style={[styles.statusBadge, { backgroundColor: statusColor }]}>
@@ -179,7 +178,7 @@ export const RoomCard: React.FC<RoomCardProps> = ({ room, onPress }) => {
             <Feather name="chevron-right" size={18} color="#FFFFFF" />
           </View>
         </View>
-      </LinearGradient>
+      </View>
     </TouchableOpacity>
   );
 };
@@ -196,29 +195,20 @@ const styles = StyleSheet.create({
     shadowRadius: 14,
     elevation: 8,
     alignSelf: 'center',
+    backgroundColor: '#1E302A',
   },
-  gradient: {
-    minHeight: 170,
+  cardInner: {
+    minHeight: 175,
     position: 'relative',
     justifyContent: 'flex-end',
   },
-  coverContainer: {
-    position: 'absolute',
-    right: 0,
-    top: 0,
-    bottom: 0,
-    width: '55%',
-  },
-  coverImage: {
+  fullCoverImage: {
+    ...StyleSheet.absoluteFillObject,
     width: '100%',
     height: '100%',
   },
-  coverFade: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    bottom: 0,
-    width: '60%',
+  coverGradientOverlay: {
+    ...StyleSheet.absoluteFillObject,
   },
   statusBadge: {
     position: 'absolute',

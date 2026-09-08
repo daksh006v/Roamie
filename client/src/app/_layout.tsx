@@ -26,6 +26,7 @@ export default function RootLayout() {
           <Stack.Screen name="index" options={{ headerShown: false }} />
           <Stack.Screen name="rooms" options={{ headerShown: false }} />
           <Stack.Screen name="create-room" options={{ headerShown: false }} />
+          <Stack.Screen name="room/[id]" options={{ headerShown: false }} />
         </Stack>
       </AuthProvider>
     </SafeAreaProvider>
