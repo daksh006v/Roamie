@@ -632,6 +632,26 @@ export const styles = StyleSheet.create({
     lineHeight: 19,
     marginBottom: 18,
   },
+  restoreBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2D7C8',
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  restoreBtnText: {
+    fontSize: 13.5,
+    fontWeight: '700',
+    color: '#C96A25',
+  },
   quickPrompts: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -756,3 +776,4 @@ export const styles = StyleSheet.create({
     fontSize: 24,
   },
 });
+

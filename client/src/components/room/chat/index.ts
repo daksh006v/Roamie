@@ -5,3 +5,7 @@ export * from './chatStyles';
 export { ChatMessageBubble } from './ChatMessageBubble';
 export { ChatActionSheet } from './ChatActionSheet';
 export { SwipeableMessageRow } from './SwipeableMessageRow';
+export { ChatDrawerMenu } from './ChatDrawerMenu';
+export { ChatSearchModal } from './ChatSearchModal';
+export { PinnedMessagesModal } from './PinnedMessagesModal';
+export { SharedMediaModal } from './SharedMediaModal';

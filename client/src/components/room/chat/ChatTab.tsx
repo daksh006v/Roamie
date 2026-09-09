@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -18,12 +18,18 @@ import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import * as ImagePicker from 'expo-image-picker';
+import * as SecureStore from 'expo-secure-store';
 import type { Socket } from 'socket.io-client';
 
 import { ChatMessage, ChatTabProps } from './types';
 import { styles, SCREEN_WIDTH } from './chatStyles';
 import { ChatMessageBubble } from './ChatMessageBubble';
 import { ChatActionSheet } from './ChatActionSheet';
+import { ChatDrawerMenu } from './ChatDrawerMenu';
+import { ChatSearchModal } from './ChatSearchModal';
+import { PinnedMessagesModal } from './PinnedMessagesModal';
+import { SharedMediaModal } from './SharedMediaModal';
+import { RoomNotificationsModal } from '../RoomNotificationsModal';
 import { TripSettingsModal } from '../TripSettingsModal';
 import api from '../../../services/api';
 import { connectSocket } from '../../../services/socket';
@@ -48,6 +54,14 @@ export const ChatTab: React.FC<ChatTabProps> = ({ data, onRefresh }) => {
   const [showAttachMenu, setShowAttachMenu] = useState(false);
   const [settingsVisible, setSettingsVisible] = useState(false);
 
+  // 3-Dots Drawer & Feature Modals states
+  const [drawerMenuVisible, setDrawerMenuVisible] = useState(false);
+  const [searchModalVisible, setSearchModalVisible] = useState(false);
+  const [pinnedModalVisible, setPinnedModalVisible] = useState(false);
+  const [notificationsModalVisible, setNotificationsModalVisible] = useState(false);
+  const [sharedMediaModalVisible, setSharedMediaModalVisible] = useState(false);
+  const [clearedAt, setClearedAt] = useState<string | null>(null);
+
   // Long-press Action Sheet states
   const [actionSheetVisible, setActionSheetVisible] = useState(false);
   const [selectedMessage, setSelectedMessage] = useState<ChatMessage | null>(null);
@@ -58,6 +72,40 @@ export const ChatTab: React.FC<ChatTabProps> = ({ data, onRefresh }) => {
   const socketRef = useRef<Socket | null>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isTypingRef = useRef(false);
+
+  // Clear Chat storage key (persisted locally on device per user and room)
+  const clearChatStorageKey = `roamie_cleared_chat_${room._id}_${currentUserId || 'me'}`;
+
+  useEffect(() => {
+    let isMounted = true;
+    SecureStore.getItemAsync(clearChatStorageKey)
+      .then((val) => {
+        if (isMounted && val) {
+          setClearedAt(val);
+        }
+      })
+      .catch((err) => console.error('Error loading cleared chat timestamp:', err));
+
+    return () => {
+      isMounted = false;
+    };
+  }, [clearChatStorageKey]);
+
+  // Messages visible to current user (respecting local clear-chat)
+  const visibleMessages = useMemo(() => {
+    if (!clearedAt) return messages;
+    const clearedTime = new Date(clearedAt).getTime();
+    if (isNaN(clearedTime)) return messages;
+    return messages.filter((m) => new Date(m.createdAt).getTime() > clearedTime);
+  }, [messages, clearedAt]);
+
+  const mediaCount = useMemo(() => {
+    return messages.filter((m) => !!m.media?.url).length;
+  }, [messages]);
+
+  const isNotificationsMuted = Boolean(
+    membership?.notifications?.muted || membership?.notifications?.chat === false
+  );
 
   // Role color map from room data
   const roleColors = room.roleColors || {
@@ -90,7 +138,7 @@ export const ChatTab: React.FC<ChatTabProps> = ({ data, onRefresh }) => {
   /* ─── Scroll to referenced reply message & highlight ─── */
   const scrollToMessage = useCallback(
     (targetId: string) => {
-      const idx = messages.findIndex((m) => m._id === targetId);
+      const idx = visibleMessages.findIndex((m) => m._id === targetId);
       if (idx >= 0) {
         setHighlightedMessageId(targetId);
         flatListRef.current?.scrollToIndex({
@@ -102,10 +150,15 @@ export const ChatTab: React.FC<ChatTabProps> = ({ data, onRefresh }) => {
           setHighlightedMessageId((curr) => (curr === targetId ? null : curr));
         }, 1800);
       } else {
-        Alert.alert('Original Message', 'The referenced message was sent earlier in this trip.');
+        Alert.alert(
+          'Message Not Visible',
+          clearedAt
+            ? 'This message was sent before your chat was cleared locally.'
+            : 'The referenced message was sent earlier in this trip.'
+        );
       }
     },
-    [messages]
+    [visibleMessages, clearedAt]
   );
 
   /* ─── Auto-scroll to latest message when keyboard opens ─── */
@@ -568,9 +621,66 @@ export const ChatTab: React.FC<ChatTabProps> = ({ data, onRefresh }) => {
     return start || end || '';
   };
 
+  /* ─── Local Clear Chat & Restore ─── */
+  const handleClearChat = useCallback(() => {
+    setDrawerMenuVisible(false);
+    setTimeout(() => {
+      Alert.alert(
+        'Clear Chat for You',
+        'This will remove messages from your view on this device. Messages will remain intact for other members and on the server.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Clear Chat',
+            style: 'destructive',
+            onPress: async () => {
+              const now = new Date().toISOString();
+              setClearedAt(now);
+              try {
+                await SecureStore.setItemAsync(clearChatStorageKey, now);
+              } catch (err) {
+                console.error('Failed to save cleared chat timestamp:', err);
+              }
+            },
+          },
+        ]
+      );
+    }, 200);
+  }, [clearChatStorageKey]);
+
+  const handleRestoreChat = useCallback(async () => {
+    setClearedAt(null);
+    try {
+      await SecureStore.deleteItemAsync(clearChatStorageKey);
+    } catch (err) {
+      console.error('Failed to reset cleared chat timestamp:', err);
+    }
+  }, [clearChatStorageKey]);
+
   /* --- Empty State --- */
   const renderEmptyState = () => {
     if (loading) return null;
+
+    if (clearedAt && messages.length > 0) {
+      return (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyEmoji}>🧹</Text>
+          <Text style={styles.emptyTitle}>Chat Cleared</Text>
+          <Text style={styles.emptySubtitle}>
+            You cleared this chat on this device. Messages remain intact for other members.
+          </Text>
+          <TouchableOpacity
+            style={styles.restoreBtn}
+            onPress={handleRestoreChat}
+            activeOpacity={0.7}
+          >
+            <Feather name="rotate-ccw" size={16} color="#C96A25" />
+            <Text style={styles.restoreBtnText}>Restore Chat History</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
     return (
       <View style={styles.emptyContainer}>
         <Text style={styles.emptyEmoji}>👋</Text>
@@ -683,13 +793,17 @@ export const ChatTab: React.FC<ChatTabProps> = ({ data, onRefresh }) => {
         </View>
 
         {/* Right Icons: Search & More Options */}
-        <TouchableOpacity style={styles.headerIconBtn} activeOpacity={0.7}>
+        <TouchableOpacity
+          style={styles.headerIconBtn}
+          activeOpacity={0.7}
+          onPress={() => setSearchModalVisible(true)}
+        >
           <Feather name="search" size={21} color="#243C32" />
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.headerIconBtn}
           activeOpacity={0.7}
-          onPress={() => setSettingsVisible(true)}
+          onPress={() => setDrawerMenuVisible(true)}
         >
           <Feather name="more-vertical" size={21} color="#243C32" />
         </TouchableOpacity>
@@ -706,9 +820,11 @@ export const ChatTab: React.FC<ChatTabProps> = ({ data, onRefresh }) => {
             }
             const pinned = pinnedMessages[pinnedBannerIndex];
             if (pinned) {
-              const idx = messages.findIndex((m) => m._id === pinned._id);
+              const idx = visibleMessages.findIndex((m) => m._id === pinned._id);
               if (idx >= 0) {
                 flatListRef.current?.scrollToIndex({ index: idx, animated: true, viewPosition: 0.3 });
+              } else {
+                setPinnedModalVisible(true);
               }
             }
           }}
@@ -748,12 +864,12 @@ export const ChatTab: React.FC<ChatTabProps> = ({ data, onRefresh }) => {
         ) : (
           <FlatList
             ref={flatListRef}
-            data={messages}
+            data={visibleMessages}
             renderItem={({ item, index }) => (
               <ChatMessageBubble
                 item={item}
                 index={index}
-                prevItem={index > 0 ? messages[index - 1] : null}
+                prevItem={index > 0 ? visibleMessages[index - 1] : null}
                 currentUserId={currentUserId}
                 isHighlighted={item._id === highlightedMessageId}
                 getRoleColor={getRoleColor}
@@ -766,7 +882,7 @@ export const ChatTab: React.FC<ChatTabProps> = ({ data, onRefresh }) => {
             keyExtractor={(item) => item._id}
             contentContainerStyle={[
               styles.messagesList,
-              messages.length === 0 && styles.messagesListEmpty,
+              visibleMessages.length === 0 && styles.messagesListEmpty,
             ]}
             ListEmptyComponent={renderEmptyState}
             ListHeaderComponent={
@@ -777,13 +893,13 @@ export const ChatTab: React.FC<ChatTabProps> = ({ data, onRefresh }) => {
               ) : null
             }
             onContentSizeChange={() => {
-              if (messages.length > 0 && !loadingMore) {
+              if (visibleMessages.length > 0 && !loadingMore) {
                 flatListRef.current?.scrollToEnd({ animated: false });
               }
             }}
             onScrollToIndexFailed={(info) => {
               setTimeout(() => {
-                if (flatListRef.current && info.index < messages.length) {
+                if (flatListRef.current && info.index < visibleMessages.length) {
                   flatListRef.current.scrollToIndex({
                     index: info.index,
                     animated: true,
@@ -937,6 +1053,69 @@ export const ChatTab: React.FC<ChatTabProps> = ({ data, onRefresh }) => {
         onTogglePin={handleTogglePin}
         onDeleteMessage={handleDeleteMessage}
         canDelete={canDeleteMessage(selectedMessage)}
+      />
+
+      {/* ═══════════════ CHAT 3-DOTS DRAWER MENU ═══════════════ */}
+      <ChatDrawerMenu
+        visible={drawerMenuVisible}
+        onClose={() => setDrawerMenuVisible(false)}
+        roomName={room.name}
+        pinnedCount={pinnedMessages.length}
+        mediaCount={mediaCount}
+        isNotificationsMuted={isNotificationsMuted}
+        onOpenSearch={() => {
+          setDrawerMenuVisible(false);
+          setSearchModalVisible(true);
+        }}
+        onOpenPinned={() => {
+          setDrawerMenuVisible(false);
+          setPinnedModalVisible(true);
+        }}
+        onOpenNotifications={() => {
+          setDrawerMenuVisible(false);
+          setNotificationsModalVisible(true);
+        }}
+        onClearChat={handleClearChat}
+        onOpenMedia={() => {
+          setDrawerMenuVisible(false);
+          setSharedMediaModalVisible(true);
+        }}
+      />
+
+      {/* ═══════════════ SEARCH MESSAGES MODAL ═══════════════ */}
+      <ChatSearchModal
+        visible={searchModalVisible}
+        onClose={() => setSearchModalVisible(false)}
+        messages={messages}
+        onSelectMessage={scrollToMessage}
+        getRoleColor={getRoleColor}
+      />
+
+      {/* ═══════════════ PINNED MESSAGES MODAL ═══════════════ */}
+      <PinnedMessagesModal
+        visible={pinnedModalVisible}
+        onClose={() => setPinnedModalVisible(false)}
+        pinnedMessages={pinnedMessages}
+        onSelectMessage={scrollToMessage}
+        onTogglePin={handleTogglePin}
+        getRoleColor={getRoleColor}
+      />
+
+      {/* ═══════════════ SHARED MEDIA MODAL ═══════════════ */}
+      <SharedMediaModal
+        visible={sharedMediaModalVisible}
+        onClose={() => setSharedMediaModalVisible(false)}
+        messages={messages}
+        onSelectMessage={scrollToMessage}
+      />
+
+      {/* ═══════════════ ROOM NOTIFICATIONS MODAL ═══════════════ */}
+      <RoomNotificationsModal
+        visible={notificationsModalVisible}
+        onClose={() => setNotificationsModalVisible(false)}
+        roomId={room._id}
+        initialNotifications={membership?.notifications}
+        onRefresh={onRefresh}
       />
 
       {/* ═══════════════ TRIP SETTINGS MODAL ═══════════════ */}
