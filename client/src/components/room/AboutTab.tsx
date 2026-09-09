@@ -19,6 +19,7 @@ import { Colors } from '../../constants/theme';
 import { TripSettingsModal } from './TripSettingsModal';
 import { EditTripModal } from './EditTripModal';
 import { QuickEditTitleModal } from './QuickEditTitleModal';
+import { InviteFriendsModal } from './InviteFriendsModal';
 import api from '../../services/api';
 
 const { width } = Dimensions.get('window');
@@ -42,74 +43,25 @@ const getMemberColor = (name: string): string => {
   return palette[Math.abs(hash) % palette.length];
 };
 
-export interface RoomPermissions {
-  members: {
-    canAddItinerary: boolean;
-    canAddExpenses: boolean;
-    canUploadMedia: boolean;
-    canAddPlaces: boolean;
-    canInvite: boolean;
-  };
-  admins: {
-    canEditTripInfo: boolean;
-    canManageRoles: boolean;
-    canEndTrip: boolean;
-    canDeleteRoom: boolean;
-  };
-}
+import {
+  RoomNotificationSettings,
+  AdminPermissions,
+  RoleColors,
+  RoomRolePermissions,
+  RoomAdminPermissions,
+  RoomPermissions,
+  RoomDetailsData,
+} from '../../types/room';
 
-export interface RoomNotificationSettings {
-  muted: boolean;
-  chat: boolean;
-  expenses: boolean;
-  itinerary: boolean;
-  gallery: boolean;
-}
-
-export interface RoomDetailsData {
-  room: {
-    _id: string;
-    name: string;
-    destination: string;
-    startDate: string;
-    endDate: string;
-    description?: string;
-    coverImage?: string;
-    status: 'planning' | 'active' | 'completed';
-    inviteCode: string;
-    createdBy?: any;
-    permissions?: RoomPermissions;
-  };
-  membership: {
-    role: 'owner' | 'admin' | 'member';
-    notifications?: RoomNotificationSettings;
-  };
-  members: Array<{
-    _id: string;
-    role: 'owner' | 'admin' | 'member';
-    userId: {
-      _id: string;
-      name: string;
-      email: string;
-      avatar?: string;
-      phone?: string;
-    };
-  }>;
-  stats: {
-    totalDays: number;
-    currentDay: number;
-    progressPercentage: number;
-    isUnderway: boolean;
-    isCompleted: boolean;
-    totalSpent: number;
-    messageCount: number;
-    photoCount: number;
-    placeCount: number;
-    itineraryCount: number;
-    memberCount: number;
-  };
-  currentUserId?: string;
-}
+export type {
+  RoomNotificationSettings,
+  AdminPermissions,
+  RoleColors,
+  RoomRolePermissions,
+  RoomAdminPermissions,
+  RoomPermissions,
+  RoomDetailsData,
+};
 
 interface AboutTabProps {
   data: RoomDetailsData;
@@ -122,14 +74,13 @@ export const AboutTab: React.FC<AboutTabProps> = ({ data, onRefresh }) => {
   const isOwner = membership?.role === 'owner';
   const isAdmin = membership?.role === 'admin';
   const isAdminOrOwner = isOwner || isAdmin;
-  const adminCanEdit = room.permissions?.admins?.canEditTripInfo ?? true;
+  const adminCanEdit = room.adminPermissions?.editRoom ?? room.permissions?.admins?.canEditTripInfo ?? true;
   const canEditTrip = isOwner || (isAdmin && adminCanEdit);
 
   const [inviteModalVisible, setInviteModalVisible] = useState(false);
   const [settingsModalVisible, setSettingsModalVisible] = useState(false);
   const [editTripModalVisible, setEditTripModalVisible] = useState(false);
   const [quickEditTitleVisible, setQuickEditTitleVisible] = useState(false);
-  const [copiedCode, setCopiedCode] = useState(false);
 
   // Cover image source
   const coverSource =
@@ -139,28 +90,6 @@ export const AboutTab: React.FC<AboutTabProps> = ({ data, onRefresh }) => {
 
   const visibleMembers = members.slice(0, 4);
   const overflowCount = Math.max(0, members.length - 4);
-
-  const handleCopyInviteCode = async () => {
-    try {
-      await Share.share({
-        message: `Join our trip "${room.name}" on Roamie! Use invite code: ${room.inviteCode}`,
-      });
-      setCopiedCode(true);
-      setTimeout(() => setCopiedCode(false), 2500);
-    } catch {
-      setCopiedCode(true);
-    }
-  };
-
-  const handleShareInvite = async () => {
-    try {
-      await Share.share({
-        message: `Join our trip "${room.name}" on Roamie! Use invite code: ${room.inviteCode}`,
-      });
-    } catch (err) {
-      console.warn('Share error:', err);
-    }
-  };
 
   const handleLeaveRoom = () => {
     Alert.alert(
@@ -245,16 +174,12 @@ export const AboutTab: React.FC<AboutTabProps> = ({ data, onRefresh }) => {
         <View style={styles.heroInfo}>
           {canEditTrip ? (
             <TouchableOpacity
-              style={styles.heroTitleTouchable}
               onPress={() => setQuickEditTitleVisible(true)}
               activeOpacity={0.8}
             >
               <Text style={styles.heroTitle} numberOfLines={1}>
                 {room.name}
               </Text>
-              <View style={styles.titleEditBadge}>
-                <Feather name="edit-2" size={13} color="#FFFFFF" />
-              </View>
             </TouchableOpacity>
           ) : (
             <Text style={styles.heroTitle} numberOfLines={1}>
@@ -544,58 +469,11 @@ export const AboutTab: React.FC<AboutTabProps> = ({ data, onRefresh }) => {
       </View>
 
       {/* Invite Friends Modal */}
-      <Modal
+      <InviteFriendsModal
         visible={inviteModalVisible}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setInviteModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHandle} />
-            <Text style={styles.modalTitle}>Invite Friends</Text>
-            <Text style={styles.modalSubtitle}>
-              Share this invite code with your friends to join {room.name}
-            </Text>
-
-            {/* Invite Code Box */}
-            <View style={styles.inviteCodeBox}>
-              <Text style={styles.inviteCodeText}>{room.inviteCode}</Text>
-              <TouchableOpacity
-                style={styles.copyBtn}
-                onPress={handleCopyInviteCode}
-                activeOpacity={0.8}
-              >
-                <Feather
-                  name={copiedCode ? 'check' : 'copy'}
-                  size={16}
-                  color={copiedCode ? '#10B981' : Colors.rooms.forestGreen}
-                />
-                <Text style={[styles.copyBtnText, copiedCode && { color: '#10B981' }]}>
-                  {copiedCode ? 'Copied' : 'Copy'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Share Link CTA */}
-            <TouchableOpacity
-              style={styles.shareLinkBtn}
-              onPress={handleShareInvite}
-              activeOpacity={0.85}
-            >
-              <Feather name="share-2" size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
-              <Text style={styles.shareLinkText}>Share Invite Link</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.modalCloseBtn}
-              onPress={() => setInviteModalVisible(false)}
-            >
-              <Text style={styles.modalCloseText}>Done</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+        onClose={() => setInviteModalVisible(false)}
+        room={room}
+      />
 
       {/* Trip Settings Modal */}
       <TripSettingsModal
@@ -645,7 +523,7 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   heroOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   heroTopBar: {
     position: 'absolute',
@@ -952,95 +830,5 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: Colors.rooms.sandBorder,
   },
-
-  /* Invite Modal */
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(23, 37, 31, 0.65)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: Colors.rooms.background,
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    padding: 24,
-    paddingBottom: 40,
-    alignItems: 'center',
-  },
-  modalHandle: {
-    width: 44,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: Colors.rooms.sandBorder,
-    marginBottom: 20,
-  },
-  modalTitle: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: Colors.rooms.darkText,
-    marginBottom: 6,
-  },
-  modalSubtitle: {
-    fontSize: 13.5,
-    color: Colors.rooms.mutedText,
-    textAlign: 'center',
-    marginBottom: 20,
-    paddingHorizontal: 20,
-  },
-  inviteCodeBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: Colors.rooms.cardCream,
-    borderWidth: 1.5,
-    borderColor: Colors.rooms.sandBorder,
-    borderRadius: 16,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    width: '100%',
-    marginBottom: 16,
-  },
-  inviteCodeText: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: Colors.rooms.forestGreen,
-    letterSpacing: 3,
-  },
-  copyBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    backgroundColor: Colors.rooms.greige,
-  },
-  copyBtnText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: Colors.rooms.forestGreen,
-  },
-  shareLinkBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Colors.rooms.forestGreen,
-    width: '100%',
-    paddingVertical: 14,
-    borderRadius: 18,
-    marginBottom: 12,
-  },
-  shareLinkText: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  modalCloseBtn: {
-    paddingVertical: 8,
-  },
-  modalCloseText: {
-    fontSize: 14,
-    color: Colors.rooms.mutedText,
-    fontWeight: '600',
-  },
 });
+

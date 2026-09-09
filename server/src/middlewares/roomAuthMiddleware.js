@@ -30,7 +30,7 @@ const requireRoomMembership = async (req, res, next) => {
 };
 
 /**
- * Ensures the authenticated user is the Owner of the room
+ * Ensures the authenticated user is the Owner of the room (Unrestricted ultimate authority)
  */
 const requireRoomOwner = async (req, res, next) => {
   try {
@@ -75,8 +75,59 @@ const requireRoomAdminOrOwner = async (req, res, next) => {
   }
 };
 
+/**
+ * Requires a specific Admin permission (or Owner)
+ * If Owner -> Allowed
+ * If Admin -> Checks room.adminPermissions[permissionKey]
+ * If Member -> Denied
+ */
+const requireAdminPermission = (permissionKey) => async (req, res, next) => {
+  try {
+    const roomId = req.params.roomId || req.params.id || req.body.roomId;
+
+    const member = req.roomMember || (await RoomMember.findOne({
+      roomId,
+      userId: req.user._id,
+    }));
+
+    if (!member) {
+      return sendError(res, 'Access denied: You are not a member of this Room', 403);
+    }
+
+    // Owner is always authorized
+    if (member.role === 'owner') {
+      req.roomMember = member;
+      return next();
+    }
+
+    // Admin requires the specific permission enabled
+    if (member.role === 'admin') {
+      const room = await Room.findById(roomId);
+      if (!room) {
+        return sendError(res, 'Room not found', 404);
+      }
+
+      // Default to true for backwards compatibility if field is missing
+      const hasPermission = room.adminPermissions?.[permissionKey] ?? true;
+      if (!hasPermission) {
+        return sendError(res, `Access denied: Admin does not have '${permissionKey}' permission in this room`, 403);
+      }
+
+      req.room = room;
+      req.roomMember = member;
+      return next();
+    }
+
+    // Regular member is denied for admin-level action
+    return sendError(res, 'Access denied: Elevated Admin privileges required for this action', 403);
+  } catch (error) {
+    return sendError(res, `Permission verification failed: ${error.message}`, 500);
+  }
+};
+
 module.exports = {
   requireRoomMembership,
   requireRoomOwner,
   requireRoomAdminOrOwner,
+  requireAdminPermission,
 };

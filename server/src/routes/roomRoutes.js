@@ -8,9 +8,12 @@ const {
   joinRoom,
   inviteContact,
   updateMemberRole,
-  updateRoomPermissions,
+  updateAdminPermissions,
+  updateRoleColors,
   updateRoomNotifications,
   updateRoom,
+  endTrip,
+  toggleLockItinerary,
   leaveRoom,
   deleteRoom,
 } = require('../controllers/roomController');
@@ -24,6 +27,7 @@ const {
   requireRoomMembership,
   requireRoomOwner,
   requireRoomAdminOrOwner,
+  requireAdminPermission,
 } = require('../middlewares/roomAuthMiddleware');
 
 // All room routes require authentication
@@ -43,13 +47,22 @@ router.use('/:roomId/media', mediaRoutes);
 router.use('/:roomId/itinerary', itineraryRoutes);
 router.use('/:roomId/places', placeRoutes);
 
+// Single Room operations
 router.route('/:id')
   .get(requireRoomMembership, getRoomById)
   .put(requireRoomMembership, updateRoom)
-  .delete(requireRoomMembership, deleteRoom);
+  .delete(requireRoomOwner, deleteRoom);
 
-router.put('/:id/members/:memberId/role', requireRoomMembership, updateMemberRole);
-router.put('/:id/permissions', requireRoomMembership, updateRoomPermissions);
+// Decoupled action-specific endpoints
+router.post('/:id/end', requireRoomMembership, endTrip);
+router.post('/:id/itinerary/lock', requireRoomMembership, toggleLockItinerary);
+
+// Owner-only management endpoints
+router.patch('/:id/admin-permissions', requireRoomOwner, updateAdminPermissions);
+router.put('/:id/role-colors', requireRoomOwner, updateRoleColors);
+router.put('/:id/members/:memberId/role', requireRoomOwner, updateMemberRole);
+
+// Member personal notifications
 router.put('/:id/notifications', requireRoomMembership, updateRoomNotifications);
 
 router.post('/:id/invite', requireRoomMembership, inviteContact);

@@ -5,6 +5,8 @@ import {
   StyleSheet,
   ActivityIndicator,
   StatusBar,
+  Keyboard,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -15,6 +17,7 @@ import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
 import { RoomBottomNav, RoomNavTab } from '../../components/room/RoomBottomNav';
 import { AboutTab, RoomDetailsData } from '../../components/room/AboutTab';
+import { ChatTab } from '../../components/room/ChatTab';
 
 export default function RoomScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -25,6 +28,22 @@ export default function RoomScreen() {
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [roomData, setRoomData] = useState<RoomDetailsData | null>(null);
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      () => setIsKeyboardVisible(true)
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => setIsKeyboardVisible(false)
+    );
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   /** Fetch live room details from GET /api/rooms/:id */
   const fetchRoomDetails = useCallback(async () => {
@@ -113,13 +132,7 @@ export default function RoomScreen() {
         )}
 
         {activeTab === 'chat' && (
-          <View style={styles.placeholderContainer}>
-            <Text style={styles.placeholderEmoji}>💬</Text>
-            <Text style={styles.placeholderTitle}>Real-time Chat</Text>
-            <Text style={styles.placeholderSubtitle}>
-              Socket.IO group messages & photos coming in the Chat step.
-            </Text>
-          </View>
+          <ChatTab data={roomData} onRefresh={fetchRoomDetails} />
         )}
 
         {activeTab === 'expenses' && (
@@ -134,7 +147,9 @@ export default function RoomScreen() {
       </View>
 
       {/* 5-Tab Bottom Navigation Bar */}
-      <RoomBottomNav activeTab={activeTab} onTabChange={setActiveTab} />
+      {(!isKeyboardVisible || activeTab !== 'chat') && (
+        <RoomBottomNav activeTab={activeTab} onTabChange={setActiveTab} />
+      )}
     </View>
   );
 }

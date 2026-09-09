@@ -15,6 +15,7 @@ import { Colors } from '../../constants/theme';
 import { useRouter } from 'expo-router';
 import { RoomDetailsData } from './AboutTab';
 import { RolePermissionsScreen } from './RolePermissionsScreen';
+import { MembersRolesModal } from './MembersRolesModal';
 import { RoomNotificationsModal } from './RoomNotificationsModal';
 import { EditTripModal } from './EditTripModal';
 import api from '../../services/api';
@@ -36,27 +37,57 @@ export const TripSettingsModal: React.FC<TripSettingsModalProps> = ({
   const { room, membership } = data;
   const isOwner = membership?.role === 'owner';
   const isAdmin = membership?.role === 'admin';
-  const isAdminOrOwner = isOwner || isAdmin;
 
   const [rolePermScreenVisible, setRolePermScreenVisible] = useState(false);
+  const [membersRolesVisible, setMembersRolesVisible] = useState(false);
   const [notificationsModalVisible, setNotificationsModalVisible] = useState(false);
   const [editTripModalVisible, setEditTripModalVisible] = useState(false);
 
-  const adminCanEdit = room.permissions?.admins?.canEditTripInfo ?? true;
-  const adminCanDelete = room.permissions?.admins?.canDeleteRoom ?? false;
+  const adminPerms = room.adminPermissions || {
+    editRoom: true,
+    manageMembers: true,
+    manageItinerary: true,
+    lockItinerary: true,
+    manageExpenses: true,
+    managePhotos: true,
+    managePlaces: true,
+    endTrip: true,
+  };
 
-  const canEditTrip = isOwner || (isAdmin && adminCanEdit);
-  const canDeleteRoom = isOwner || (isAdmin && adminCanDelete);
+  const canEditTrip = isOwner || (isAdmin && (adminPerms.editRoom ?? true));
+  const canLockItinerary = isOwner || (isAdmin && (adminPerms.lockItinerary ?? true));
+  const canEndTrip = isOwner || (isAdmin && (adminPerms.endTrip ?? true));
+  const canDeleteRoom = isOwner; // Strictly Owner only
 
   const handleLockItinerary = async () => {
     try {
-      await api.put(`/rooms/${room._id}`, {
-        isItineraryLocked: !(room as any).isItineraryLocked,
-      });
+      await api.post(`/rooms/${room._id}/itinerary/lock`);
       onRefresh();
     } catch (err: any) {
       Alert.alert('Error', err.response?.data?.message || 'Could not toggle itinerary lock.');
     }
+  };
+
+  const handleEndTrip = () => {
+    Alert.alert(
+      'End Trip',
+      `Are you sure you want to mark "${room.name}" as ended?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'End Trip',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await api.post(`/rooms/${room._id}/end`);
+              onRefresh();
+            } catch (err: any) {
+              Alert.alert('Error', err.response?.data?.message || 'Could not end the trip.');
+            }
+          },
+        },
+      ]
+    );
   };
 
   const handleLeaveRoom = () => {
@@ -144,8 +175,24 @@ export const TripSettingsModal: React.FC<TripSettingsModalProps> = ({
                 <Feather name="chevron-right" size={18} color={Colors.rooms.mutedText} />
               </TouchableOpacity>
 
-              {/* Role & Permissions — Owner or Admin with canManageRoles */}
-              {(isOwner || (isAdmin && (room.permissions?.admins?.canManageRoles ?? true))) && (
+              {/* Members & Roles */}
+              <TouchableOpacity
+                style={styles.settingRow}
+                onPress={() => setMembersRolesVisible(true)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.settingIconContainer}>
+                  <Feather name="users" size={18} color="#4A6741" />
+                </View>
+                <View style={styles.settingContent}>
+                  <Text style={styles.settingTitle}>Members & Roles</Text>
+                  <Text style={styles.settingSubtitle}>View travelers and manage member roles</Text>
+                </View>
+                <Feather name="chevron-right" size={18} color={Colors.rooms.mutedText} />
+              </TouchableOpacity>
+
+              {/* Role Permissions — Owner only */}
+              {isOwner && (
                 <TouchableOpacity
                   style={styles.settingRow}
                   onPress={() => setRolePermScreenVisible(true)}
@@ -156,7 +203,7 @@ export const TripSettingsModal: React.FC<TripSettingsModalProps> = ({
                   </View>
                   <View style={styles.settingContent}>
                     <Text style={styles.settingTitle}>Role Permissions</Text>
-                    <Text style={styles.settingSubtitle}>Manage member roles & access controls</Text>
+                    <Text style={styles.settingSubtitle}>Configure admin privileges & role colors</Text>
                   </View>
                   <Feather name="chevron-right" size={18} color={Colors.rooms.mutedText} />
                 </TouchableOpacity>
@@ -181,7 +228,7 @@ export const TripSettingsModal: React.FC<TripSettingsModalProps> = ({
               )}
 
               {/* Lock / Unlock Itinerary */}
-              {canEditTrip && (
+              {canLockItinerary && (
                 <TouchableOpacity
                   style={styles.settingRow}
                   onPress={handleLockItinerary}
@@ -203,6 +250,24 @@ export const TripSettingsModal: React.FC<TripSettingsModalProps> = ({
                         ? 'Allow members to edit the itinerary again'
                         : 'Prevent members from changing the plan'}
                     </Text>
+                  </View>
+                  <Feather name="chevron-right" size={18} color={Colors.rooms.mutedText} />
+                </TouchableOpacity>
+              )}
+
+              {/* End Trip */}
+              {canEndTrip && (
+                <TouchableOpacity
+                  style={styles.settingRow}
+                  onPress={handleEndTrip}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.settingIconContainer}>
+                    <Feather name="check-circle" size={18} color="#8A6B58" />
+                  </View>
+                  <View style={styles.settingContent}>
+                    <Text style={styles.settingTitle}>End Trip</Text>
+                    <Text style={styles.settingSubtitle}>Conclude this trip and mark as finished</Text>
                   </View>
                   <Feather name="chevron-right" size={18} color={Colors.rooms.mutedText} />
                 </TouchableOpacity>
@@ -251,6 +316,17 @@ export const TripSettingsModal: React.FC<TripSettingsModalProps> = ({
           </View>
         </View>
       </Modal>
+
+      {/* Members & Roles Modal */}
+      <MembersRolesModal
+        visible={membersRolesVisible}
+        onClose={() => {
+          setMembersRolesVisible(false);
+          onRefresh();
+        }}
+        data={data}
+        onRefresh={onRefresh}
+      />
 
       {/* Role Permissions Full-Screen */}
       <RolePermissionsScreen

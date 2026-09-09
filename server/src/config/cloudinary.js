@@ -64,12 +64,20 @@ const uploadToStorage = async (fileBuffer, roomId, originalFilename, mediaType =
           (error, result) => {
             if (error) return reject(error);
             resolve({
-              storageUrl: result.secure_url,
+              storageUrl: cloudinary.url(result.public_id, {
+                secure: true,
+                quality: 'auto:good',
+                fetch_format: 'auto',
+                width: 1400,
+                crop: 'limit',
+              }) || result.secure_url,
               thumbnailUrl: cloudinary.url(result.public_id, {
-                width: 300,
-                height: 300,
+                secure: true,
+                width: 400,
+                height: 400,
                 crop: 'fill',
-                quality: 'auto',
+                quality: 'auto:good',
+                fetch_format: 'auto',
               }),
               publicId: result.public_id,
               width: result.width,

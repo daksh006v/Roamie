@@ -30,7 +30,7 @@ const initSocketIO = (io) => {
   io.on('connection', (socket) => {
     console.log(`🔌 Socket connected: ${socket.user.name} (${socket.user._id})`);
 
-    // 1. Join Room Channel with authorization check
+    // 1. Join Room Channel with database authorization check
     socket.on('join_room', async ({ roomId }, callback) => {
       try {
         if (!roomId) {
@@ -38,23 +38,24 @@ const initSocketIO = (io) => {
           return;
         }
 
-        // Verify user is a member of this room
+        // Strictly verify user is a registered member of this room
         const membership = await RoomMember.findOne({
           roomId,
           userId: socket.user._id,
         });
 
         if (!membership) {
-          if (callback) callback({ success: false, error: 'Not authorized for this room' });
+          console.warn(`⛔ Unauthorized socket join attempt by ${socket.user.name} for room ${roomId}`);
+          if (callback) callback({ success: false, error: 'Not authorized: You are not a member of this room' });
           return;
         }
 
         const roomChannel = `room:${roomId}`;
         socket.join(roomChannel);
-        console.log(`👤 ${socket.user.name} joined socket room: ${roomChannel}`);
+        console.log(`👤 ${socket.user.name} (${membership.role}) joined socket room: ${roomChannel}`);
 
         if (callback) {
-          callback({ success: true, room: roomChannel });
+          callback({ success: true, room: roomChannel, role: membership.role });
         }
       } catch (error) {
         console.error('Socket join_room error:', error);
@@ -70,35 +71,52 @@ const initSocketIO = (io) => {
     });
 
     // 3. Real-time Send Message via Socket
-    socket.on('send_message', async ({ roomId, text, mediaUrl, messageType }, callback) => {
+    socket.on('send_message', async (data, callback) => {
       try {
-        if (!roomId || (!text && !mediaUrl)) {
-          if (callback) callback({ success: false, error: 'Message content is required' });
+        const { roomId, content, text, media, mediaUrl, type, messageType, replyTo, metadata } = data || {};
+        const messageContent = (content || text || '').trim();
+        const mediaObj = media || (mediaUrl ? { url: mediaUrl, type: 'image' } : null);
+
+        if (!roomId || (!messageContent && (!mediaObj || !mediaObj.url))) {
+          if (callback) callback({ success: false, error: 'Message content or media is required' });
           return;
         }
 
-        // Verify membership
+        // Strictly verify membership in DB before processing
         const membership = await RoomMember.findOne({
           roomId,
           userId: socket.user._id,
         });
 
         if (!membership) {
-          if (callback) callback({ success: false, error: 'Not authorized to send messages in this room' });
+          if (callback) callback({ success: false, error: 'Not authorized: You are not a member of this room' });
           return;
         }
+
+        const resolvedType = type || messageType || (mediaObj && mediaObj.url ? 'image' : 'text');
 
         const message = await Message.create({
           roomId,
           senderId: socket.user._id,
-          text: text || '',
-          mediaUrl: mediaUrl || '',
-          messageType: messageType || (mediaUrl ? 'image' : 'text'),
+          content: messageContent,
+          text: messageContent,
+          type: resolvedType,
+          messageType: resolvedType,
+          media: mediaObj || { url: '', type: 'image', width: 0, height: 0 },
+          mediaUrl: mediaObj?.url || '',
+          replyTo: replyTo || null,
+          metadata: (metadata && Object.keys(metadata).length > 0) ? metadata : null,
         });
 
-        const populatedMessage = await Message.findById(message._id).populate('senderId', 'name avatar email');
+        const populatedMessage = await Message.findById(message._id)
+          .populate('senderId', 'name avatar email')
+          .populate({
+            path: 'replyTo',
+            select: 'content text senderId media type',
+            populate: { path: 'senderId', select: 'name' },
+          });
 
-        // Broadcast to all sockets in room (including sender or excluding sender if client handles optimistically)
+        // Broadcast to all sockets in room
         io.to(`room:${roomId}`).emit('new_message', populatedMessage);
 
         if (callback) {
@@ -110,7 +128,132 @@ const initSocketIO = (io) => {
       }
     });
 
-    // 4. Typing indicators
+    // 4. Toggle Emoji Reaction via Socket
+    socket.on('add_reaction', async ({ roomId, messageId, emoji }, callback) => {
+      try {
+        if (!roomId || !messageId || !emoji) {
+          if (callback) callback({ success: false, error: 'roomId, messageId, and emoji required' });
+          return;
+        }
+
+        // Verify membership
+        const membership = await RoomMember.findOne({ roomId, userId: socket.user._id });
+        if (!membership) {
+          if (callback) callback({ success: false, error: 'Not authorized' });
+          return;
+        }
+
+        const message = await Message.findOne({ _id: messageId, roomId });
+        if (!message) {
+          if (callback) callback({ success: false, error: 'Message not found' });
+          return;
+        }
+
+        const userIdStr = socket.user._id.toString();
+        const existingIdx = message.reactions.findIndex(
+          (r) => r.userId.toString() === userIdStr && r.emoji === emoji
+        );
+
+        if (existingIdx > -1) {
+          message.reactions.splice(existingIdx, 1);
+        } else {
+          message.reactions.push({ userId: socket.user._id, emoji });
+        }
+
+        await message.save();
+
+        io.to(`room:${roomId}`).emit('message_reaction_updated', {
+          messageId: message._id,
+          reactions: message.reactions,
+        });
+
+        if (callback) callback({ success: true, reactions: message.reactions });
+      } catch (error) {
+        if (callback) callback({ success: false, error: error.message });
+      }
+    });
+
+    // 4b. Real-time Delete Message
+    socket.on('delete_message', async ({ roomId, messageId }, callback) => {
+      try {
+        if (!roomId || !messageId) {
+          if (callback) callback({ success: false, error: 'Room ID and message ID required' });
+          return;
+        }
+
+        const membership = await RoomMember.findOne({ roomId, userId: socket.user._id });
+        if (!membership) {
+          if (callback) callback({ success: false, error: 'Not authorized' });
+          return;
+        }
+
+        const message = await Message.findOne({ _id: messageId, roomId });
+        if (!message) {
+          if (callback) callback({ success: false, error: 'Message not found' });
+          return;
+        }
+
+        const isAuthor = message.senderId.toString() === socket.user._id.toString();
+        const isOwner = membership.role === 'owner';
+        const isAdmin = membership.role === 'admin';
+
+        if (!isAuthor && !isOwner && !isAdmin) {
+          if (callback) callback({ success: false, error: 'Not authorized to delete this message' });
+          return;
+        }
+
+        await Message.findByIdAndDelete(messageId);
+
+        io.to(`room:${roomId}`).emit('message_deleted', {
+          messageId,
+          roomId,
+        });
+
+        if (callback) callback({ success: true, messageId });
+      } catch (error) {
+        if (callback) callback({ success: false, error: error.message });
+      }
+    });
+
+    // 4c. Real-time Pin Message
+    socket.on('pin_message', async ({ roomId, messageId }, callback) => {
+      try {
+        if (!roomId || !messageId) {
+          if (callback) callback({ success: false, error: 'Room ID and message ID required' });
+          return;
+        }
+
+        const membership = await RoomMember.findOne({ roomId, userId: socket.user._id });
+        if (!membership) {
+          if (callback) callback({ success: false, error: 'Not authorized' });
+          return;
+        }
+
+        const message = await Message.findOne({ _id: messageId, roomId })
+          .populate('senderId', 'name avatar email');
+        if (!message) {
+          if (callback) callback({ success: false, error: 'Message not found' });
+          return;
+        }
+
+        message.isPinned = !message.isPinned;
+        message.pinnedBy = message.isPinned ? socket.user._id : null;
+        message.pinnedAt = message.isPinned ? new Date() : null;
+        await message.save();
+
+        io.to(`room:${roomId}`).emit('message_pinned_updated', {
+          messageId: message._id,
+          isPinned: message.isPinned,
+          message,
+        });
+
+        if (callback) callback({ success: true, isPinned: message.isPinned, message });
+      } catch (error) {
+        if (callback) callback({ success: false, error: error.message });
+      }
+    });
+
+    // 5. Typing indicators
     socket.on('typing', ({ roomId }) => {
       socket.to(`room:${roomId}`).emit('user_typing', {
         userId: socket.user._id,

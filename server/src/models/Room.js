@@ -45,6 +45,21 @@ const roomSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    adminPermissions: {
+      editRoom: { type: Boolean, default: true },
+      manageMembers: { type: Boolean, default: true },
+      manageItinerary: { type: Boolean, default: true },
+      lockItinerary: { type: Boolean, default: true },
+      manageExpenses: { type: Boolean, default: true },
+      managePhotos: { type: Boolean, default: true },
+      managePlaces: { type: Boolean, default: true },
+      endTrip: { type: Boolean, default: true },
+    },
+    roleColors: {
+      owner: { type: String, default: '#C96A25' },
+      admin: { type: String, default: '#5F745F' },
+      member: { type: String, default: '#59615A' },
+    },
     permissions: {
       members: {
         canAddItinerary: { type: Boolean, default: true },

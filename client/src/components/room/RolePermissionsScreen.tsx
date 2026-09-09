@@ -14,7 +14,7 @@ import {
 import { Feather } from '@expo/vector-icons';
 
 import { Colors } from '../../constants/theme';
-import { RoomDetailsData, RoomPermissions } from './AboutTab';
+import { RoomDetailsData, AdminPermissions, RoleColors } from './AboutTab';
 import api from '../../services/api';
 
 interface RolePermissionsScreenProps {
@@ -24,20 +24,37 @@ interface RolePermissionsScreenProps {
   onRefresh: () => void;
 }
 
-const getMemberColor = (name: string): string => {
-  const palette = ['#648A62', '#C96A25', '#5F745F', '#E18A3A', '#C97935', '#243C32'];
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) {
-    hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  return palette[Math.abs(hash) % palette.length];
+const DEFAULT_ADMIN_PERMISSIONS: AdminPermissions = {
+  editRoom: true,
+  manageMembers: true,
+  manageItinerary: true,
+  lockItinerary: true,
+  manageExpenses: true,
+  managePhotos: true,
+  managePlaces: true,
+  endTrip: true,
 };
 
-const ROLE_LABELS: Record<string, { label: string; emoji: string; color: string }> = {
-  owner: { label: 'Owner', emoji: '👑', color: '#C97935' },
-  admin: { label: 'Admin', emoji: '🛡️', color: '#648A62' },
-  member: { label: 'Member', emoji: '👤', color: '#5F745F' },
+const DEFAULT_ROLE_COLORS: RoleColors = {
+  owner: '#C96A25',
+  admin: '#5F745F',
+  member: '#59615A',
 };
+
+const COLOR_SWATCHES = [
+  '#C96A25', // Burnt Orange
+  '#5F745F', // Forest Sage
+  '#59615A', // Charcoal Slate
+  '#E18A3A', // Warm Amber
+  '#648A62', // Active Green
+  '#38BDF8', // Cyber Cyan
+  '#8B5CF6', // Neon Purple
+  '#EC4899', // Hot Pink
+  '#EF4444', // Ruby Red
+  '#10B981', // Emerald
+  '#F59E0B', // Sunburst Gold
+  '#243C32', // Dark Pine
+];
 
 export const RolePermissionsScreen: React.FC<RolePermissionsScreenProps> = ({
   visible,
@@ -45,581 +62,643 @@ export const RolePermissionsScreen: React.FC<RolePermissionsScreenProps> = ({
   data,
   onRefresh,
 }) => {
-  const { room, membership, members, currentUserId } = data;
+  const { room, membership } = data;
   const isOwner = membership?.role === 'owner';
 
-  const defaultPerms: RoomPermissions = {
-    members: {
-      canAddItinerary: true,
-      canAddExpenses: true,
-      canUploadMedia: true,
-      canAddPlaces: true,
-      canInvite: true,
-    },
-    admins: {
-      canEditTripInfo: true,
-      canManageRoles: true,
-      canEndTrip: true,
-      canDeleteRoom: false,
-    },
-  };
-
-  const [permissions, setPermissions] = useState<RoomPermissions>(
-    room.permissions || defaultPerms
-  );
+  const [activeTab, setActiveTab] = useState<'permissions' | 'colors'>('permissions');
+  const [adminPermissions, setAdminPermissions] = useState<AdminPermissions>({
+    ...DEFAULT_ADMIN_PERMISSIONS,
+    ...(room.adminPermissions || {}),
+  });
+  const [roleColors, setRoleColors] = useState<RoleColors>({
+    ...DEFAULT_ROLE_COLORS,
+    ...(room.roleColors || {}),
+  });
+  const [selectedRoleToColor, setSelectedRoleToColor] = useState<'owner' | 'admin' | 'member'>('admin');
   const [saving, setSaving] = useState(false);
-  const [changingRole, setChangingRole] = useState<string | null>(null);
 
-  const handleTogglePermission = (
-    category: 'members' | 'admins',
-    key: string,
-    value: boolean
-  ) => {
-    setPermissions((prev) => ({
+  const handleToggle = (key: keyof AdminPermissions, value: boolean) => {
+    setAdminPermissions((prev) => ({
       ...prev,
-      [category]: {
-        ...prev[category],
-        [key]: value,
-      },
+      [key]: value,
     }));
   };
 
-  const handleSavePermissions = useCallback(async () => {
+  const handleSaveAll = useCallback(async () => {
     setSaving(true);
     try {
-      await api.put(`/rooms/${room._id}/permissions`, { permissions });
+      // Save admin permissions via PATCH /api/rooms/:id/admin-permissions
+      await api.patch(`/rooms/${room._id}/admin-permissions`, {
+        adminPermissions,
+      });
+
+      // Save role colors via PUT /api/rooms/:id/role-colors
+      await api.put(`/rooms/${room._id}/role-colors`, {
+        roleColors,
+      });
+
       onRefresh();
-      Alert.alert('Saved', 'Role permissions updated successfully.');
+      Alert.alert('Saved', 'Role settings and permissions updated successfully.');
+      onClose();
     } catch (err: any) {
-      Alert.alert('Error', err.response?.data?.message || 'Could not update permissions.');
+      Alert.alert('Error', err.response?.data?.message || 'Could not update role settings.');
     } finally {
       setSaving(false);
     }
-  }, [permissions, room._id, onRefresh]);
+  }, [room._id, adminPermissions, roleColors, onRefresh, onClose]);
 
-  const handleRoleChange = useCallback(
-    async (memberId: string, memberName: string, currentRole: string) => {
-      const newRole = currentRole === 'admin' ? 'member' : 'admin';
-      const actionLabel =
-        newRole === 'admin'
-          ? `Promote ${memberName} to Admin?`
-          : `Demote ${memberName} to Member?`;
-
-      Alert.alert('Change Role', actionLabel, [
-        { text: 'Cancel', style: 'cancel' },
+  const permissionGroups: Array<{
+    group: string;
+    items: Array<{
+      key: keyof AdminPermissions;
+      label: string;
+      desc: string;
+      icon: string;
+    }>;
+  }> = [
+    {
+      group: 'ROOM',
+      items: [
         {
-          text: newRole === 'admin' ? 'Promote' : 'Demote',
-          style: newRole === 'admin' ? 'default' : 'destructive',
-          onPress: async () => {
-            setChangingRole(memberId);
-            try {
-              await api.put(`/rooms/${room._id}/members/${memberId}/role`, {
-                role: newRole,
-              });
-              onRefresh();
-            } catch (err: any) {
-              Alert.alert(
-                'Error',
-                err.response?.data?.message || 'Could not update role.'
-              );
-            } finally {
-              setChangingRole(null);
-            }
-          },
+          key: 'editRoom',
+          label: 'Edit Room',
+          desc: 'Modify room name, cover image, destination, dates & description',
+          icon: 'edit-2',
         },
-      ]);
-    },
-    [room._id, onRefresh]
-  );
-
-  const memberPermEntries: Array<{
-    key: keyof RoomPermissions['members'];
-    label: string;
-    description: string;
-    icon: string;
-  }> = [
-    {
-      key: 'canAddItinerary',
-      label: 'Add Itinerary Items',
-      description: 'Create & edit planned activities',
-      icon: 'calendar',
+        {
+          key: 'manageMembers',
+          label: 'Manage Members',
+          desc: 'Invite new travelers and remove members',
+          icon: 'users',
+        },
+      ],
     },
     {
-      key: 'canAddExpenses',
-      label: 'Add Expenses',
-      description: 'Record trip expenses & splits',
-      icon: 'credit-card',
+      group: 'ITINERARY',
+      items: [
+        {
+          key: 'manageItinerary',
+          label: 'Manage Itinerary',
+          desc: 'Edit, delete and reorder activities created by others',
+          icon: 'calendar',
+        },
+        {
+          key: 'lockItinerary',
+          label: 'Lock Itinerary',
+          desc: 'Lock or unlock the shared schedule',
+          icon: 'lock',
+        },
+      ],
     },
     {
-      key: 'canUploadMedia',
-      label: 'Upload Photos',
-      description: 'Upload photos to the gallery',
-      icon: 'image',
+      group: 'EXPENSES',
+      items: [
+        {
+          key: 'manageExpenses',
+          label: 'Manage Expenses',
+          desc: 'Edit or delete expense records added by other travelers',
+          icon: 'dollar-sign',
+        },
+      ],
     },
     {
-      key: 'canAddPlaces',
-      label: 'Add Places',
-      description: 'Pin new locations to the trip',
-      icon: 'map-pin',
+      group: 'CONTENT',
+      items: [
+        {
+          key: 'managePhotos',
+          label: 'Manage Photos',
+          desc: 'Moderate and delete photos in the shared gallery',
+          icon: 'image',
+        },
+        {
+          key: 'managePlaces',
+          label: 'Manage Places',
+          desc: 'Edit and delete places saved by members',
+          icon: 'map-pin',
+        },
+      ],
     },
     {
-      key: 'canInvite',
-      label: 'Invite Friends',
-      description: 'Share invite codes with others',
-      icon: 'user-plus',
+      group: 'TRIP',
+      items: [
+        {
+          key: 'endTrip',
+          label: 'End Trip',
+          desc: 'Conclude and move room to Completed archive',
+          icon: 'check-circle',
+        },
+      ],
     },
   ];
 
-  const adminPermEntries: Array<{
-    key: keyof RoomPermissions['admins'];
-    label: string;
-    description: string;
-    icon: string;
-  }> = [
-    {
-      key: 'canEditTripInfo',
-      label: 'Edit Trip Details',
-      description: 'Modify name, dates, destination & cover',
-      icon: 'edit-2',
-    },
-    {
-      key: 'canManageRoles',
-      label: 'Manage Member Roles',
-      description: 'Promote or demote other members',
-      icon: 'shield',
-    },
-    {
-      key: 'canDeleteRoom',
-      label: 'Delete Room',
-      description: 'Permanently remove this room',
-      icon: 'trash-2',
-    },
-  ];
-
-  // Sort members: owner first, then admins, then members
-  const sortedMembers = [...members].sort((a, b) => {
-    const order = { owner: 0, admin: 1, member: 2 };
-    return (order[a.role] || 2) - (order[b.role] || 2);
-  });
+  if (!isOwner) {
+    return (
+      <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+        <View style={s.overlay}>
+          <View style={s.sheet}>
+            <View style={s.handle} />
+            <Text style={s.title}>Role Permissions</Text>
+            <Text style={s.subtitle}>Only the Room Owner can configure Admin permissions.</Text>
+            <TouchableOpacity style={s.closeBtnSingle} onPress={onClose}>
+              <Text style={s.closeBtnText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+    );
+  }
 
   return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      onRequestClose={onClose}
-    >
-      <View style={styles.screen}>
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity
-            onPress={onClose}
-            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-          >
-            <Feather name="arrow-left" size={22} color={Colors.rooms.darkText} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Role Permissions</Text>
-          <View style={{ width: 22 }} />
-        </View>
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      <View style={s.overlay}>
+        <View style={s.sheet}>
+          <View style={s.handle} />
 
-        <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* === SECTION 1: Member Roles === */}
-          <Text style={styles.sectionTitle}>Members ({members.length})</Text>
-          <Text style={styles.sectionSubtitle}>
-            Tap a member to change their role
-          </Text>
-
-          <View style={styles.card}>
-            {sortedMembers.map((m, idx) => {
-              const isMe = m.userId?._id === currentUserId;
-              const isThisOwner = m.role === 'owner';
-              const roleInfo = ROLE_LABELS[m.role] || ROLE_LABELS.member;
-              const initials = (m.userId?.name || 'U')
-                .split(' ')
-                .map((n) => n[0])
-                .join('')
-                .toUpperCase()
-                .slice(0, 2);
-
-              const canChangeRole = isOwner && !isThisOwner && !isMe;
-
-              return (
-                <View key={m._id}>
-                  {idx > 0 && <View style={styles.memberDivider} />}
-                  <TouchableOpacity
-                    style={styles.memberRow}
-                    disabled={!canChangeRole}
-                    onPress={() =>
-                      canChangeRole &&
-                      handleRoleChange(m._id, m.userId?.name || 'Member', m.role)
-                    }
-                    activeOpacity={canChangeRole ? 0.7 : 1}
-                  >
-                    {/* Avatar */}
-                    <View
-                      style={[
-                        styles.memberAvatar,
-                        { backgroundColor: getMemberColor(m.userId?.name || '') },
-                      ]}
-                    >
-                      <Text style={styles.memberAvatarText}>{initials}</Text>
-                    </View>
-
-                    {/* Name & Email */}
-                    <View style={styles.memberInfo}>
-                      <Text style={styles.memberName} numberOfLines={1}>
-                        {isMe ? 'You' : m.userId?.name || 'Member'}
-                      </Text>
-                      <Text style={styles.memberEmail} numberOfLines={1}>
-                        {m.userId?.email || ''}
-                      </Text>
-                    </View>
-
-                    {/* Role Badge */}
-                    {changingRole === m._id ? (
-                      <ActivityIndicator
-                        size="small"
-                        color={Colors.rooms.forestGreen}
-                      />
-                    ) : (
-                      <View
-                        style={[
-                          styles.roleBadge,
-                          { backgroundColor: roleInfo.color + '18' },
-                        ]}
-                      >
-                        <Text style={styles.roleEmoji}>{roleInfo.emoji}</Text>
-                        <Text
-                          style={[styles.roleLabel, { color: roleInfo.color }]}
-                        >
-                          {roleInfo.label}
-                        </Text>
-                      </View>
-                    )}
-
-                    {canChangeRole && (
-                      <Feather
-                        name="chevron-right"
-                        size={16}
-                        color={Colors.rooms.mutedText}
-                        style={{ marginLeft: 6 }}
-                      />
-                    )}
-                  </TouchableOpacity>
-                </View>
-              );
-            })}
+          {/* Header */}
+          <View style={s.headerRow}>
+            <View>
+              <Text style={s.title}>Role Permissions</Text>
+              <Text style={s.subtitle}>Configure what Admins can do in this Room</Text>
+            </View>
+            <TouchableOpacity style={s.closeIconBtn} onPress={onClose}>
+              <Feather name="x" size={20} color={Colors.rooms.darkText} />
+            </TouchableOpacity>
           </View>
 
-          {/* === SECTION 2: Member Permissions Toggles (Owner only) === */}
-          {isOwner && (
-            <>
-              <Text style={[styles.sectionTitle, { marginTop: 28 }]}>
-                Member Permissions
-              </Text>
-              <Text style={styles.sectionSubtitle}>
-                Control what standard members can do
-              </Text>
-
-              <View style={styles.card}>
-                {memberPermEntries.map((entry, idx) => (
-                  <View key={entry.key}>
-                    {idx > 0 && <View style={styles.memberDivider} />}
-                    <View style={styles.permRow}>
-                      <View style={styles.permIconWrap}>
-                        <Feather
-                          name={entry.icon as any}
-                          size={16}
-                          color="#648A62"
-                        />
-                      </View>
-                      <View style={styles.permContent}>
-                        <Text style={styles.permLabel}>{entry.label}</Text>
-                        <Text style={styles.permDescription}>
-                          {entry.description}
-                        </Text>
-                      </View>
-                      <Switch
-                        value={permissions.members[entry.key]}
-                        onValueChange={(val) =>
-                          handleTogglePermission('members', entry.key, val)
-                        }
-                        trackColor={{
-                          false: '#D1D5DB',
-                          true: '#648A6280',
-                        }}
-                        thumbColor={
-                          permissions.members[entry.key]
-                            ? '#648A62'
-                            : '#F3F4F6'
-                        }
-                      />
-                    </View>
-                  </View>
-                ))}
-              </View>
-            </>
-          )}
-
-          {/* === SECTION 3: Admin Permissions Toggles (Owner only) === */}
-          {isOwner && (
-            <>
-              <Text style={[styles.sectionTitle, { marginTop: 28 }]}>
+          {/* Tab Switcher: Admin Permissions vs Role Colors */}
+          <View style={s.tabRow}>
+            <TouchableOpacity
+              style={[s.tab, activeTab === 'permissions' && s.tabActive]}
+              onPress={() => setActiveTab('permissions')}
+              activeOpacity={0.8}
+            >
+              <Feather
+                name="shield"
+                size={14}
+                color={activeTab === 'permissions' ? Colors.rooms.forestGreen : Colors.rooms.mutedText}
+              />
+              <Text style={[s.tabText, activeTab === 'permissions' && s.tabTextActive]}>
                 Admin Permissions
               </Text>
-              <Text style={styles.sectionSubtitle}>
-                Control what Admins are allowed to do
-              </Text>
+            </TouchableOpacity>
 
-              <View style={styles.card}>
-                {adminPermEntries.map((entry, idx) => (
-                  <View key={entry.key}>
-                    {idx > 0 && <View style={styles.memberDivider} />}
-                    <View style={styles.permRow}>
-                      <View
-                        style={[
-                          styles.permIconWrap,
-                          entry.key === 'canDeleteRoom' && {
-                            backgroundColor: '#FEF2F2',
-                          },
-                        ]}
-                      >
-                        <Feather
-                          name={entry.icon as any}
-                          size={16}
-                          color={
-                            entry.key === 'canDeleteRoom'
-                              ? '#DC2626'
-                              : '#C97935'
-                          }
-                        />
-                      </View>
-                      <View style={styles.permContent}>
-                        <Text
-                          style={[
-                            styles.permLabel,
-                            entry.key === 'canDeleteRoom' && {
-                              color: '#DC2626',
-                            },
-                          ]}
-                        >
-                          {entry.label}
-                        </Text>
-                        <Text style={styles.permDescription}>
-                          {entry.description}
-                        </Text>
-                      </View>
-                      <Switch
-                        value={permissions.admins[entry.key]}
-                        onValueChange={(val) =>
-                          handleTogglePermission('admins', entry.key, val)
-                        }
-                        trackColor={{
-                          false: '#D1D5DB',
-                          true:
-                            entry.key === 'canDeleteRoom'
-                              ? '#DC262640'
-                              : '#C9793580',
-                        }}
-                        thumbColor={
-                          permissions.admins[entry.key]
-                            ? entry.key === 'canDeleteRoom'
-                              ? '#DC2626'
-                              : '#C97935'
-                            : '#F3F4F6'
-                        }
-                      />
+            <TouchableOpacity
+              style={[s.tab, activeTab === 'colors' && s.tabActive]}
+              onPress={() => setActiveTab('colors')}
+              activeOpacity={0.8}
+            >
+              <Feather
+                name="droplet"
+                size={14}
+                color={activeTab === 'colors' ? Colors.rooms.forestGreen : Colors.rooms.mutedText}
+              />
+              <Text style={[s.tabText, activeTab === 'colors' && s.tabTextActive]}>
+                Role Colors
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={s.scrollView} contentContainerStyle={s.scrollContent} showsVerticalScrollIndicator={false}>
+            {activeTab === 'permissions' ? (
+              <View>
+                <View style={s.infoBanner}>
+                  <Feather name="info" size={15} color={Colors.rooms.forestGreen} />
+                  <Text style={s.infoBannerText}>
+                    Normal Members always retain full trip abilities (chat, add photos, places, itinerary, expenses).
+                    These settings elevate what Admins can manage.
+                  </Text>
+                </View>
+
+                {permissionGroups.map((grp) => (
+                  <View key={grp.group} style={s.groupWrap}>
+                    <Text style={s.groupHeader}>{grp.group}</Text>
+                    <View style={s.card}>
+                      {grp.items.map((item, idx) => (
+                        <View key={item.key}>
+                          {idx > 0 && <View style={s.divider} />}
+                          <View style={s.itemRow}>
+                            <View style={s.iconWrap}>
+                              <Feather name={item.icon as any} size={16} color={Colors.rooms.forestGreen} />
+                            </View>
+                            <View style={s.textWrap}>
+                              <Text style={s.itemLabel}>{item.label}</Text>
+                              <Text style={s.itemDesc}>{item.desc}</Text>
+                            </View>
+                            <Switch
+                              value={adminPermissions[item.key]}
+                              onValueChange={(val) => handleToggle(item.key, val)}
+                              trackColor={{ false: '#D1D5DB', true: 'rgba(36, 60, 50, 0.35)' }}
+                              thumbColor={adminPermissions[item.key] ? Colors.rooms.forestGreen : '#F3F4F6'}
+                            />
+                          </View>
+                        </View>
+                      ))}
                     </View>
                   </View>
                 ))}
               </View>
-            </>
-          )}
+            ) : (
+              <View>
+                <View style={s.infoBanner}>
+                  <Feather name="droplet" size={15} color={Colors.rooms.forestGreen} />
+                  <Text style={s.infoBannerText}>
+                    Role colors are cosmetic only. In Chat, each traveler’s username appears in their role color.
+                  </Text>
+                </View>
+
+                {/* Role Selector */}
+                <Text style={s.groupHeader}>SELECT ROLE TO COLOR</Text>
+                <View style={s.roleSelectorRow}>
+                  {(['owner', 'admin', 'member'] as const).map((r) => {
+                    const isSelected = selectedRoleToColor === r;
+                    const roleName = r === 'owner' ? '👑 Owner' : r === 'admin' ? '🛡️ Admin' : '👤 Member';
+                    return (
+                      <TouchableOpacity
+                        key={r}
+                        style={[s.roleSelectBtn, isSelected && s.roleSelectBtnActive]}
+                        onPress={() => setSelectedRoleToColor(r)}
+                        activeOpacity={0.8}
+                      >
+                        <View style={[s.colorDot, { backgroundColor: roleColors[r] }]} />
+                        <Text style={[s.roleSelectText, isSelected && s.roleSelectTextActive]}>{roleName}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                {/* Color Swatches */}
+                <Text style={s.groupHeader}>CHOOSE COLOR</Text>
+                <View style={s.swatchGrid}>
+                  {COLOR_SWATCHES.map((color) => {
+                    const isCurrent = roleColors[selectedRoleToColor] === color;
+                    return (
+                      <TouchableOpacity
+                        key={color}
+                        style={[s.swatch, { backgroundColor: color }, isCurrent && s.swatchSelected]}
+                        onPress={() =>
+                          setRoleColors((prev) => ({
+                            ...prev,
+                            [selectedRoleToColor]: color,
+                          }))
+                        }
+                        activeOpacity={0.7}
+                      >
+                        {isCurrent && <Feather name="check" size={18} color="#FFFFFF" />}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                {/* Live Chat Preview */}
+                <Text style={s.groupHeader}>CHAT PREVIEW</Text>
+                <View style={s.previewChatCard}>
+                  <View style={s.previewChatRow}>
+                    <View style={[s.previewAvatar, { backgroundColor: roleColors.owner }]}>
+                      <Text style={s.previewAvatarText}>D</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Text style={[s.previewUsername, { color: roleColors.owner }]}>{data.room.createdBy?.name || 'Daksh'}</Text>
+                        <View style={[s.previewTag, { backgroundColor: 'rgba(201, 106, 37, 0.15)' }]}>
+                          <Text style={[s.previewTagText, { color: roleColors.owner }]}>Owner</Text>
+                        </View>
+                      </View>
+                      <Text style={s.previewMsgText}>Welcome to {room.name}! Itinerary is ready.</Text>
+                    </View>
+                  </View>
+
+                  <View style={[s.previewChatRow, { marginTop: 12 }]}>
+                    <View style={[s.previewAvatar, { backgroundColor: roleColors.admin }]}>
+                      <Text style={s.previewAvatarText}>V</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Text style={[s.previewUsername, { color: roleColors.admin }]}>Vineet</Text>
+                        <View style={[s.previewTag, { backgroundColor: 'rgba(95, 116, 95, 0.15)' }]}>
+                          <Text style={[s.previewTagText, { color: roleColors.admin }]}>Admin</Text>
+                        </View>
+                      </View>
+                      <Text style={s.previewMsgText}>Finally booked the stay!</Text>
+                    </View>
+                  </View>
+
+                  <View style={[s.previewChatRow, { marginTop: 12 }]}>
+                    <View style={[s.previewAvatar, { backgroundColor: roleColors.member }]}>
+                      <Text style={s.previewAvatarText}>P</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Text style={[s.previewUsername, { color: roleColors.member }]}>Pal</Text>
+                      </View>
+                      <Text style={s.previewMsgText}>Super excited for this trip! 🏖️</Text>
+                    </View>
+                  </View>
+                </View>
+              </View>
+            )}
+          </ScrollView>
 
           {/* Save Button */}
-          {isOwner && (
-            <TouchableOpacity
-              style={[styles.saveBtn, saving && { opacity: 0.6 }]}
-              onPress={handleSavePermissions}
-              disabled={saving}
-              activeOpacity={0.85}
-            >
-              {saving ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
-              ) : (
-                <>
-                  <Feather
-                    name="check"
-                    size={18}
-                    color="#FFFFFF"
-                    style={{ marginRight: 8 }}
-                  />
-                  <Text style={styles.saveBtnText}>Save Permissions</Text>
-                </>
-              )}
-            </TouchableOpacity>
-          )}
-
-          <View style={{ height: 40 }} />
-        </ScrollView>
+          <TouchableOpacity
+            style={s.saveBtn}
+            onPress={handleSaveAll}
+            disabled={saving}
+            activeOpacity={0.85}
+          >
+            {saving ? (
+              <ActivityIndicator color="#FFFFFF" size="small" />
+            ) : (
+              <Text style={s.saveBtnText}>Save Role Settings</Text>
+            )}
+          </TouchableOpacity>
+        </View>
       </View>
     </Modal>
   );
 };
 
-const styles = StyleSheet.create({
-  screen: {
+const s = StyleSheet.create({
+  overlay: {
     flex: 1,
-    backgroundColor: Colors.rooms.background,
+    backgroundColor: 'rgba(23, 37, 31, 0.65)',
+    justifyContent: 'flex-end',
   },
-  header: {
+  sheet: {
+    backgroundColor: Colors.rooms.background,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    padding: 22,
+    paddingBottom: Platform.OS === 'ios' ? 36 : 22,
+    maxHeight: '88%',
+  },
+  handle: {
+    width: 44,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: Colors.rooms.sandBorder,
+    alignSelf: 'center',
+    marginBottom: 16,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  title: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: Colors.rooms.darkText,
+    marginBottom: 4,
+  },
+  subtitle: {
+    fontSize: 13,
+    color: Colors.rooms.mutedText,
+  },
+  closeIconBtn: {
+    padding: 6,
+    borderRadius: 12,
+    backgroundColor: Colors.rooms.cardCream,
+  },
+  tabRow: {
+    flexDirection: 'row',
+    backgroundColor: Colors.rooms.cardCream,
+    borderRadius: 14,
+    padding: 4,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: Colors.rooms.sandBorder,
+  },
+  tab: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: Platform.OS === 'ios' ? 56 : 16,
-    paddingBottom: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.rooms.sandBorder,
-    backgroundColor: Colors.rooms.background,
+    justifyContent: 'center',
+    paddingVertical: 10,
+    borderRadius: 11,
+    gap: 6,
   },
-  headerTitle: {
-    fontSize: 18,
+  tabActive: {
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  tabText: {
+    fontSize: 13.5,
+    fontWeight: '600',
+    color: Colors.rooms.mutedText,
+  },
+  tabTextActive: {
+    color: Colors.rooms.forestGreen,
     fontWeight: '700',
-    color: Colors.rooms.darkText,
-    letterSpacing: 0.3,
   },
   scrollView: {
-    flex: 1,
+    maxHeight: 460,
   },
   scrollContent: {
-    paddingHorizontal: 20,
-    paddingTop: 20,
+    paddingBottom: 20,
   },
-  sectionTitle: {
-    fontSize: 16,
+  infoBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    backgroundColor: Colors.rooms.cardCream,
+    borderWidth: 1,
+    borderColor: Colors.rooms.sandBorder,
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 18,
+  },
+  infoBannerText: {
+    flex: 1,
+    fontSize: 12.5,
+    color: Colors.rooms.mutedText,
+    lineHeight: 18,
+  },
+  groupWrap: {
+    marginBottom: 18,
+  },
+  groupHeader: {
+    fontSize: 11.5,
+    fontWeight: '800',
+    letterSpacing: 1.2,
+    color: Colors.rooms.forestGreen,
+    marginBottom: 8,
+    paddingLeft: 4,
+  },
+  card: {
+    backgroundColor: Colors.rooms.cardCream,
+    borderWidth: 1,
+    borderColor: Colors.rooms.sandBorder,
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  divider: {
+    height: 1,
+    backgroundColor: 'rgba(213, 197, 174, 0.4)',
+    marginHorizontal: 14,
+  },
+  itemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    gap: 12,
+  },
+  iconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: 'rgba(36, 60, 50, 0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  textWrap: {
+    flex: 1,
+  },
+  itemLabel: {
+    fontSize: 14.5,
     fontWeight: '700',
     color: Colors.rooms.darkText,
     marginBottom: 2,
   },
-  sectionSubtitle: {
+  itemDesc: {
     fontSize: 12,
     color: Colors.rooms.mutedText,
-    marginBottom: 12,
+    lineHeight: 16,
   },
-  card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    overflow: 'hidden',
+  roleSelectorRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 18,
+  },
+  roleSelectBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: Colors.rooms.cardCream,
     borderWidth: 1,
     borderColor: Colors.rooms.sandBorder,
-  },
-
-  /* Member Rows */
-  memberRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-  },
-  memberDivider: {
-    height: 1,
-    backgroundColor: Colors.rooms.sandBorder,
-    marginHorizontal: 14,
-  },
-  memberAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  memberAvatarText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    letterSpacing: 0.5,
-  },
-  memberInfo: {
-    flex: 1,
-    marginRight: 8,
-  },
-  memberName: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.rooms.darkText,
-  },
-  memberEmail: {
-    fontSize: 11,
-    color: Colors.rooms.mutedText,
-    marginTop: 1,
-  },
-  roleBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
     borderRadius: 12,
+    paddingVertical: 10,
   },
-  roleEmoji: {
-    fontSize: 12,
-    marginRight: 4,
+  roleSelectBtnActive: {
+    borderColor: Colors.rooms.forestGreen,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.8,
   },
-  roleLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.3,
+  colorDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
   },
-
-  /* Permission Toggle Rows */
-  permRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-  },
-  permIconWrap: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    backgroundColor: Colors.rooms.greige,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  permContent: {
-    flex: 1,
-    marginRight: 8,
-  },
-  permLabel: {
-    fontSize: 14,
+  roleSelectText: {
+    fontSize: 12.5,
     fontWeight: '600',
-    color: Colors.rooms.darkText,
-  },
-  permDescription: {
-    fontSize: 11,
     color: Colors.rooms.mutedText,
-    marginTop: 1,
   },
-
-  /* Save Button */
-  saveBtn: {
+  roleSelectTextActive: {
+    color: Colors.rooms.darkText,
+    fontWeight: '700',
+  },
+  swatchGrid: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    marginBottom: 20,
+    paddingHorizontal: 4,
+  },
+  swatch: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#648A62',
-    borderRadius: 14,
-    paddingVertical: 15,
-    marginTop: 28,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  swatchSelected: {
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+    transform: [{ scale: 1.1 }],
+  },
+  previewChatCard: {
+    backgroundColor: '#1E1F22', // Discord dark message background
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 10,
+  },
+  previewChatRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  previewAvatar: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  previewAvatarText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  previewUsername: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  previewTag: {
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 4,
+  },
+  previewTagText: {
+    fontSize: 10,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+  },
+  previewMsgText: {
+    fontSize: 13,
+    color: '#DBDEE1',
+    marginTop: 2,
+  },
+  saveBtn: {
+    backgroundColor: Colors.rooms.forestGreen,
+    paddingVertical: 14,
+    borderRadius: 16,
+    alignItems: 'center',
+    marginTop: 10,
+    shadowColor: Colors.rooms.forestGreen,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 5,
+    elevation: 3,
   },
   saveBtnText: {
+    color: '#FFFFFF',
     fontSize: 15,
     fontWeight: '700',
+  },
+  closeBtnSingle: {
+    marginTop: 20,
+    backgroundColor: Colors.rooms.forestGreen,
+    paddingVertical: 12,
+    borderRadius: 14,
+    alignItems: 'center',
+  },
+  closeBtnText: {
     color: '#FFFFFF',
-    letterSpacing: 0.3,
+    fontSize: 14,
+    fontWeight: '700',
   },
 });
