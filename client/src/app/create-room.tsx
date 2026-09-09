@@ -479,10 +479,10 @@ const styles = StyleSheet.create({
     resizeMode: 'cover',
   },
   coverOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   addCoverCenterBtn: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     justifyContent: 'center',
     alignItems: 'center',
   },

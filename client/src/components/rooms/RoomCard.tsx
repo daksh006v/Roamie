@@ -203,12 +203,12 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   fullCoverImage: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     width: '100%',
     height: '100%',
   },
   coverGradientOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   statusBadge: {
     position: 'absolute',

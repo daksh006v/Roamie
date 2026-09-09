@@ -392,7 +392,7 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   coverOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(0, 0, 0, 0.35)',
     flexDirection: 'row',
     alignItems: 'center',
