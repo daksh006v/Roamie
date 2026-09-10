@@ -1,6 +1,7 @@
 const Expense = require('../models/Expense');
 const ExpenseSplit = require('../models/ExpenseSplit');
 const RoomMember = require('../models/RoomMember');
+const Settlement = require('../models/Settlement');
 
 /**
  * Calculates net balances and settlement matrix for a room:
@@ -11,7 +12,8 @@ const RoomMember = require('../models/RoomMember');
 const calculateRoomBalances = async (roomId, currentUserId) => {
   const members = await RoomMember.find({ roomId }).populate('userId', 'name email avatar');
   const expenses = await Expense.find({ roomId }).populate('paidBy', 'name email avatar');
-  const splits = await ExpenseSplit.find({ roomId, isSettled: false }).populate('userId', 'name email avatar');
+  const splits = await ExpenseSplit.find({ roomId }).populate('userId', 'name email avatar');
+  const settledRecords = await Settlement.find({ roomId, status: 'settled' });
 
   // Map user balances: userId -> net amount
   const userBalances = {};
@@ -46,7 +48,7 @@ const calculateRoomBalances = async (roomId, currentUserId) => {
     }
   });
 
-  // Subtract unpaid split shares
+  // Subtract all expense shares to form gross balances.
   splits.forEach((split) => {
     if (split.userId) {
       const debtorId = split.userId._id.toString();
@@ -55,6 +57,14 @@ const calculateRoomBalances = async (roomId, currentUserId) => {
         userTotalOwed[debtorId] += split.amount;
       }
     }
+  });
+
+  // Net settled reimbursements out of the gross balance.
+  settledRecords.forEach((settlement) => {
+    const from = settlement.fromUser.toString();
+    const to = settlement.toUser.toString();
+    if (userBalances[from] !== undefined) userBalances[from] += settlement.amount;
+    if (userBalances[to] !== undefined) userBalances[to] -= settlement.amount;
   });
 
   const totalSpent = expenses.reduce((sum, exp) => sum + exp.amount, 0);
@@ -67,6 +77,7 @@ const calculateRoomBalances = async (roomId, currentUserId) => {
     totalPaid: Math.round((userTotalPaid[uid] || 0) * 100) / 100,
     totalOwed: Math.round((userTotalOwed[uid] || 0) * 100) / 100,
     netBalance: Math.round((userBalances[uid] || 0) * 100) / 100,
+    outstandingBalance: Math.round((userBalances[uid] || 0) * 100) / 100,
     status: (userBalances[uid] || 0) > 0 ? 'owed' : (userBalances[uid] || 0) < 0 ? 'owes' : 'settled',
   }));
 
