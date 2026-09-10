@@ -4,9 +4,12 @@ const {
   addExpense,
   getExpenses,
   getExpenseById,
+  addExpenseComment,
   getBalances,
   settleSplit,
+  settleSettlement,
   deleteExpense,
+  editExpense,
 } = require('../controllers/expenseController');
 const { protect } = require('../middlewares/authMiddleware');
 const { requireRoomMembership } = require('../middlewares/roomAuthMiddleware');
@@ -20,9 +23,14 @@ router.route('/')
 
 router.get('/balances', getBalances);
 
+router.put('/settlements/settle', settleSettlement);
+
 router.route('/:expenseId')
   .get(getExpenseById)
-  .delete(deleteExpense);
+  .delete(deleteExpense)
+  .put(editExpense);
+
+router.post('/:expenseId/comments', addExpenseComment);
 
 router.put('/splits/:splitId/settle', settleSplit);
 

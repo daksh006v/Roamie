@@ -1,5 +1,22 @@
 const mongoose = require('mongoose');
 
+const expenseCommentSchema = new mongoose.Schema(
+  {
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+    },
+    text: {
+      type: String,
+      required: true,
+      trim: true,
+      maxlength: 500,
+    },
+  },
+  { timestamps: true }
+);
+
 const expenseSchema = new mongoose.Schema(
   {
     roomId: {
@@ -37,10 +54,22 @@ const expenseSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
+    receiptUrls: {
+      type: [String],
+      default: [],
+    },
     notes: {
       type: String,
       trim: true,
       default: '',
+    },
+    tags: {
+      type: [String],
+      default: [],
+    },
+    comments: {
+      type: [expenseCommentSchema],
+      default: [],
     },
   },
   { timestamps: true }
