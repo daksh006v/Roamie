@@ -22,7 +22,7 @@ interface MembersRolesModalProps {
   visible: boolean;
   onClose: () => void;
   data: RoomDetailsData;
-  onRefresh: () => void;
+  onRefresh?: () => void;
 }
 
 const getMemberColor = (name: string): string => {
@@ -54,15 +54,15 @@ export const MembersRolesModal: React.FC<MembersRolesModalProps> = ({
   data,
   onRefresh,
 }) => {
-  const { room, membership, members, currentUserId } = data;
+  const { room, membership, members = [], currentUserId } = data || ({} as RoomDetailsData);
   const isOwner = membership?.role === 'owner';
   const [changingMemberId, setChangingMemberId] = useState<string | null>(null);
 
   // Dynamic role badges based on room.roleColors
   const roleBadges = useMemo(() => {
-    const ownerColor = room.roleColors?.owner || '#C96A25';
-    const adminColor = room.roleColors?.admin || '#5F745F';
-    const memberColor = room.roleColors?.member || '#59615A';
+    const ownerColor = room?.roleColors?.owner || '#C96A25';
+    const adminColor = room?.roleColors?.admin || '#5F745F';
+    const memberColor = room?.roleColors?.member || '#59615A';
 
     return {
       owner: {
@@ -84,7 +84,7 @@ export const MembersRolesModal: React.FC<MembersRolesModalProps> = ({
         text: memberColor,
       },
     };
-  }, [room.roleColors]);
+  }, [room?.roleColors]);
 
   // Sort: Owner first, then Admins, then Members
   const sortedMembers = useMemo(() => {
@@ -120,7 +120,7 @@ export const MembersRolesModal: React.FC<MembersRolesModalProps> = ({
               await api.put(`/rooms/${room._id}/members/${memberId}/role`, {
                 role: targetRole,
               });
-              onRefresh();
+              onRefresh?.();
             } catch (err: any) {
               Alert.alert(
                 'Error',
@@ -159,7 +159,7 @@ export const MembersRolesModal: React.FC<MembersRolesModalProps> = ({
               <Text style={s.subtitle}>
                 {isOwner
                   ? 'Tap a member to promote or demote'
-                  : `${members.length} travelers in ${room.name}`}
+                  : `${members?.length ?? 0} travelers in ${room?.name ?? 'this trip'}`}
               </Text>
             </View>
             <TouchableOpacity style={s.closeBtn} onPress={onClose}>
@@ -178,7 +178,7 @@ export const MembersRolesModal: React.FC<MembersRolesModalProps> = ({
               const displayName = isCurrentUser
                 ? `${m.userId?.name || 'Traveler'} (You)`
                 : m.userId?.name || 'Traveler';
-              const badge = roleBadges[m.role] || roleBadges.member;
+              const badge = (roleBadges as Record<string, typeof roleBadges.member>)[m.role] || roleBadges.member;
               const isTargetOwner = m.role === 'owner';
               const isUpdating = changingMemberId === m._id;
 
@@ -269,7 +269,11 @@ const s = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   overlayBackdrop: {
-    ...StyleSheet.absoluteFill,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
   sheet: {
     backgroundColor: Colors.rooms.background,

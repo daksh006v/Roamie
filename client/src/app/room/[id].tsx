@@ -18,13 +18,14 @@ import api from '../../services/api';
 import { RoomBottomNav, RoomNavTab } from '../../components/room/RoomBottomNav';
 import { AboutTab, RoomDetailsData } from '../../components/room/AboutTab';
 import { ChatTab } from '../../components/room/ChatTab';
+import { ExpensesTab } from '../../components/room/ExpensesTab';
 
 export default function RoomScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
   const router = useRouter();
 
-  const [activeTab, setActiveTab] = useState<RoomNavTab>('about');
+  const [activeTab, setActiveTab] = useState<RoomNavTab>('chat');
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [roomData, setRoomData] = useState<RoomDetailsData | null>(null);
@@ -136,13 +137,7 @@ export default function RoomScreen() {
         )}
 
         {activeTab === 'expenses' && (
-          <View style={styles.placeholderContainer}>
-            <Text style={styles.placeholderEmoji}>💰</Text>
-            <Text style={styles.placeholderTitle}>Expenses</Text>
-            <Text style={styles.placeholderSubtitle}>
-              Splits, receipts & running balance engine coming in the Expenses step.
-            </Text>
-          </View>
+          <ExpensesTab data={roomData} onRefresh={fetchRoomDetails} />
         )}
       </View>
 

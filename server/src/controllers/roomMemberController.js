@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Room = require('../models/Room');
 const RoomMember = require('../models/RoomMember');
 const Message = require('../models/Message');
@@ -210,11 +211,14 @@ const updateMemberRole = async (req, res) => {
       return sendError(res, 'Access denied: Only the room Owner can promote or demote members', 403);
     }
 
-    // Find target member
-    const targetMember = await RoomMember.findOne({
-      _id: memberId,
-      roomId,
-    }).populate('userId', 'name email avatar');
+    // Find target member by RoomMember _id or userId
+    let targetMember = null;
+    if (mongoose.Types.ObjectId.isValid(memberId)) {
+      targetMember = await RoomMember.findOne({
+        $or: [{ _id: memberId }, { userId: memberId }],
+        roomId,
+      }).populate('userId', 'name email avatar');
+    }
 
     if (!targetMember) {
       return sendError(res, 'Target member not found in this room', 404);
@@ -234,7 +238,7 @@ const updateMemberRole = async (req, res) => {
         ? `${req.user.name} promoted ${targetMember.userId?.name || 'a member'} to Admin 🛡️`
         : `${req.user.name} set ${targetMember.userId?.name || 'a member'}'s role to Member 👤`;
 
-    await Message.create({
+    const systemMsg = await Message.create({
       roomId,
       senderId: req.user._id,
       type: 'system',
@@ -242,6 +246,17 @@ const updateMemberRole = async (req, res) => {
       content: actionText,
       systemAction: actionText,
     });
+
+    // Broadcast via Socket.IO if available
+    const io = req.app?.get?.('io');
+    if (io) {
+      io.to(`room:${roomId}`).emit('new_message', systemMsg);
+      io.to(`room:${roomId}`).emit('member_role_updated', {
+        memberId: targetMember._id,
+        userId: targetMember.userId?._id,
+        role,
+      });
+    }
 
     return sendSuccess(res, `Role updated to ${role} successfully`, {
       member: targetMember,
