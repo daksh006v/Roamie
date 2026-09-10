@@ -21,7 +21,7 @@ import { getOptimizedImageUrl } from '../../utils/imageOptimizer';
 import { connectSocket } from '../../services/socket';
 import AddExpenseModal from './expenses/AddExpenseModal';
 import { ExpenseDetailsModal } from './expenses/ExpenseDetailsModal';
-import AllExpensesModal from './expenses/AllExpensesModal';
+import ExpenseMenuDrawer, { ExpenseDrawerView } from './expenses/ExpenseMenuDrawer';
 import { getTagConfig, getIconForTags } from './expenses/tagConfig';
 
 const { width } = Dimensions.get('window');
@@ -228,6 +228,7 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({ data, onRefresh }) => 
   const [showAddExpense, setShowAddExpense] = useState(false);
   const [openExpenseId, setOpenExpenseId] = useState<string | null>(null);
   const [showAllExpenses, setShowAllExpenses] = useState(false);
+  const [drawerView, setDrawerView] = useState<ExpenseDrawerView>('menu');
   const [expandedSettlement, setExpandedSettlement] = useState<number | null>(null);
   const [settlingIndex, setSettlingIndex] = useState<number | null>(null);
 
@@ -343,7 +344,8 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({ data, onRefresh }) => 
     try {
       Vibration.vibrate(12);
     } catch (e) {}
-    console.log('[ExpensesTab] Menu pressed - TODO: open expenses menu bottom sheet');
+    setDrawerView('menu');
+    setShowAllExpenses(true);
   };
 
   const handleBackPress = () => {
@@ -548,8 +550,8 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({ data, onRefresh }) => 
           <View style={styles.sectionContainer}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Recent Expenses</Text>
-              <TouchableOpacity onPress={() => setShowAllExpenses(true)} activeOpacity={0.7}>
-                <Text style={styles.seeAllLink}>See all ›</Text>
+              <TouchableOpacity onPress={() => { setDrawerView('all'); setShowAllExpenses(true); }} activeOpacity={0.7}>
+                <Text style={styles.seeAllLink}>See all &gt;</Text>
               </TouchableOpacity>
             </View>
 
@@ -834,14 +836,20 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({ data, onRefresh }) => 
           } : previous);
         }}
       />
-      <AllExpensesModal
+      <ExpenseMenuDrawer
         visible={showAllExpenses}
+        view={drawerView}
         expenses={expensesData?.expenses || []}
+        breakdown={balancesData?.breakdown || []}
+        settlements={balancesData?.settlements || []}
+        currentUserId={currentUserId}
+        isOwner={membership?.role === 'owner'}
         onClose={() => setShowAllExpenses(false)}
         onExpensePress={(expense) => {
           setShowAllExpenses(false);
           handleExpensePress(expense);
         }}
+        onSettle={(settlement) => settleDebt(settlement, -1)}
       />
     </View>
   );
