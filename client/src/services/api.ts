@@ -13,8 +13,9 @@ import Constants from 'expo-constants';
  * 4. Falls back to the machine's LAN IP (192.168.1.93).
  */
 const getBaseUrl = (): string => {
-  if (process.env.EXPO_PUBLIC_API_URL) {
-    return process.env.EXPO_PUBLIC_API_URL;
+  if (process.env.EXPO_PUBLIC_API_URL && process.env.EXPO_PUBLIC_API_URL.trim().length > 0) {
+    const raw = process.env.EXPO_PUBLIC_API_URL.trim().replace(/\/+$/, '');
+    return raw.endsWith('/api') ? raw : `${raw}/api`;
   }
   if (Platform.OS === 'web') {
     return 'http://localhost:5000/api';
@@ -32,6 +33,7 @@ const getBaseUrl = (): string => {
 };
 
 export const API_URL = getBaseUrl();
+console.log(`🌐 [Roamie API] Base URL set to: ${API_URL}`);
 
 const api = axios.create({
   baseURL: API_URL,
