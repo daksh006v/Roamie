@@ -19,6 +19,7 @@ import { RoomBottomNav, RoomNavTab } from '../../components/room/RoomBottomNav';
 import { AboutTab, RoomDetailsData } from '../../components/room/AboutTab';
 import { ChatTab } from '../../components/room/ChatTab';
 import { ExpensesTab } from '../../components/room/ExpensesTab';
+import { GalleryTab } from '../../components/room/GalleryTab';
 
 export default function RoomScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -123,13 +124,7 @@ export default function RoomScreen() {
         )}
 
         {activeTab === 'gallery' && (
-          <View style={styles.placeholderContainer}>
-            <Text style={styles.placeholderEmoji}>📸</Text>
-            <Text style={styles.placeholderTitle}>Gallery</Text>
-            <Text style={styles.placeholderSubtitle}>
-              Shared photo grid & camera upload coming in the Gallery step.
-            </Text>
-          </View>
+          <GalleryTab data={roomData} onRefresh={fetchRoomDetails} />
         )}
 
         {activeTab === 'chat' && (
