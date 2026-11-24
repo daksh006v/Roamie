@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -11,19 +11,19 @@ import {
   Platform,
   ActivityIndicator,
   Alert,
-  Linking,
+  Vibration,
 } from 'react-native';
 import {
   Feather,
   Ionicons,
   MaterialCommunityIcons,
-  FontAwesome5,
 } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import * as Clipboard from 'expo-clipboard';
+import MapView, { Marker, Region, MapPressEvent } from 'react-native-maps';
 import { Colors } from '../../../constants/theme';
 import api from '../../../services/api';
-import { SavedPlace, LocationSearchResult } from './itineraryTypes';
+import { SavedPlace } from './itineraryTypes';
 
 interface AddPlaceModalProps {
   visible: boolean;
@@ -34,14 +34,20 @@ interface AddPlaceModalProps {
 }
 
 const CATEGORIES = [
-  { key: 'food', label: 'Food & Dining', icon: 'food-fork-drink', color: '#C96A25', bg: '#FDF3E7' },
-  { key: 'beach', label: 'Beach & Nature', icon: 'beach', color: '#0284C7', bg: '#E0F2FE' },
-  { key: 'stay', label: 'Hotel & Stay', icon: 'bed-king', color: '#243C32', bg: '#EDF5EF' },
-  { key: 'sights', label: 'Sightseeing', icon: 'camera-iris', color: '#B45309', bg: '#FEF3C7' },
+  { key: 'other', label: 'Other', icon: 'map-marker-radius', color: '#64748B', bg: '#F1F5F9' },
+  { key: 'food', label: 'Dining', icon: 'food-fork-drink', color: '#C96A25', bg: '#FDF3E7' },
+  { key: 'beach', label: 'Beach', icon: 'beach', color: '#0284C7', bg: '#E0F2FE' },
+  { key: 'stay', label: 'Stay', icon: 'bed-king', color: '#243C32', bg: '#EDF5EF' },
+  { key: 'sights', label: 'Sights', icon: 'camera-iris', color: '#B45309', bg: '#FEF3C7' },
   { key: 'nightlife', label: 'Nightlife', icon: 'glass-cocktail', color: '#9333EA', bg: '#F3E8FF' },
   { key: 'activity', label: 'Adventure', icon: 'hiking', color: '#059669', bg: '#D1FAE5' },
-  { key: 'other', label: 'Other Spot', icon: 'map-marker-radius', color: '#64748B', bg: '#F1F5F9' },
 ];
+
+// Default fallback location (Goa, India)
+const DEFAULT_COORDS = {
+  latitude: 15.5491,
+  longitude: 73.7535,
+};
 
 export const AddPlaceModal: React.FC<AddPlaceModalProps> = ({
   visible,
@@ -50,246 +56,207 @@ export const AddPlaceModal: React.FC<AddPlaceModalProps> = ({
   onClose,
   onPlaceAdded,
 }) => {
-  // Mode: 'search' (Google Maps place search) | 'link' (Paste Google Maps link/coords) | 'manual'
-  const [activeMode, setActiveMode] = useState<'search' | 'link' | 'gps'>('search');
+  const mapRef = useRef<MapView | null>(null);
 
-  // Search input & results
+  // Search input
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
-  const [searchResults, setSearchResults] = useState<LocationSearchResult[]>([]);
 
-  // Link paste input
-  const [mapsLinkInput, setMapsLinkInput] = useState('');
-  const [isParsingLink, setIsParsingLink] = useState(false);
+  // Map Region & Pin Position (internal only, not shown to user as raw numbers)
+  const [selectedCoords, setSelectedCoords] = useState<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
 
-  // Form Fields
+  const [region, setRegion] = useState<Region>({
+    latitude: DEFAULT_COORDS.latitude,
+    longitude: DEFAULT_COORDS.longitude,
+    latitudeDelta: 0.04,
+    longitudeDelta: 0.04,
+  });
+
+  // User-facing inputs: Name, Address, Category (defaults to 'other'), Notes
   const [name, setName] = useState('');
-  const [category, setCategory] = useState('food');
   const [address, setAddress] = useState('');
+  const [category, setCategory] = useState('other'); // Default to 'other'
   const [description, setDescription] = useState('');
-  const [latitude, setLatitude] = useState('');
-  const [longitude, setLongitude] = useState('');
-  const [selectedLocationSource, setSelectedLocationSource] = useState<string | null>(null);
 
   const [isLocating, setIsLocating] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // When modal opens, center on room destination or current position
+  useEffect(() => {
+    if (visible) {
+      resetForm();
+      initializeMapLocation();
+    }
+  }, [visible, roomDestination]);
+
   const resetForm = () => {
-    setActiveMode('search');
     setSearchQuery('');
-    setSearchResults([]);
-    setMapsLinkInput('');
     setName('');
-    setCategory('food');
     setAddress('');
+    setCategory('other');
     setDescription('');
-    setLatitude('');
-    setLongitude('');
-    setSelectedLocationSource(null);
+    setSelectedCoords(null);
+    setIsSearching(false);
     setIsLocating(false);
     setIsSubmitting(false);
   };
 
-  /** Search any global location on Google Maps / OpenStreet via expo-location geocoding */
-  const handleSearchLocation = async (overrideQuery?: string) => {
-    const query = (overrideQuery || searchQuery).trim();
-    if (!query) {
-      Alert.alert('Search Needed', 'Type any place, hotel, cafe, beach, or landmark.');
-      return;
+  /** Center the map on the destination city or fallback */
+  const initializeMapLocation = async () => {
+    try {
+      if (roomDestination && roomDestination.trim()) {
+        const results = await Location.geocodeAsync(roomDestination.trim());
+        if (results && results.length > 0) {
+          const target = {
+            latitude: results[0].latitude,
+            longitude: results[0].longitude,
+          };
+          updateMapPosition(target.latitude, target.longitude, false);
+          return;
+        }
+      }
+
+      // If no destination or failed, try user current position
+      const { status } = await Location.getForegroundPermissionsAsync();
+      if (status === 'granted') {
+        const position = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+        updateMapPosition(position.coords.latitude, position.coords.longitude, false);
+      }
+    } catch (e) {
+      // Non-blocking fallback
     }
+  };
+
+  /** Smoothly move map and drop/update pin */
+  const updateMapPosition = async (
+    lat: number,
+    lng: number,
+    autoFillDetails: boolean = true
+  ) => {
+    const coords = { latitude: lat, longitude: lng };
+    setSelectedCoords(coords);
+
+    const newRegion: Region = {
+      latitude: lat,
+      longitude: lng,
+      latitudeDelta: 0.02,
+      longitudeDelta: 0.02,
+    };
+    setRegion(newRegion);
+
+    if (mapRef.current) {
+      mapRef.current.animateToRegion(newRegion, 600);
+    }
+
+    if (autoFillDetails) {
+      try {
+        Vibration.vibrate(10);
+      } catch (e) {}
+
+      // Reverse geocode to suggest place name & formatted address
+      try {
+        const reverseResults = await Location.reverseGeocodeAsync({
+          latitude: lat,
+          longitude: lng,
+        });
+
+        if (reverseResults && reverseResults.length > 0) {
+          const info = reverseResults[0];
+          const fullAddressParts = [
+            info.name,
+            info.street,
+            info.district,
+            info.city,
+            info.country,
+          ].filter(Boolean);
+
+          const formatted = fullAddressParts.join(', ');
+          if (formatted) setAddress(formatted);
+
+          // If user hasn't typed a custom name, auto-fill it
+          if (info.name || info.street || info.city) {
+            setName(info.name || info.street || `${info.city} Spot`);
+          }
+        }
+      } catch (err) {
+        // Fallback
+      }
+    }
+  };
+
+  /** User taps anywhere on the interactive map */
+  const handleMapPress = (e: MapPressEvent) => {
+    const { latitude: lat, longitude: lng } = e.nativeEvent.coordinate;
+    updateMapPosition(lat, lng, true);
+  };
+
+  /** Search place, landmark or parse pasted Google Maps link */
+  const handleSearchOrLink = async () => {
+    const query = searchQuery.trim();
+    if (!query) return;
 
     try {
       setIsSearching(true);
-      setSearchResults([]);
 
-      // If room destination is known and query doesn't include it, append for better relevance
-      const fullQuery =
+      // Check if user pasted coordinates or Google Maps link
+      const coordMatch = query.match(/(-?\d+\.\d+)[\s,]+(-?\d+\.\d+)/);
+      if (coordMatch) {
+        const lat = parseFloat(coordMatch[1]);
+        const lng = parseFloat(coordMatch[2]);
+        await updateMapPosition(lat, lng, true);
+        setIsSearching(false);
+        return;
+      }
+
+      const atMatch = query.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+      if (atMatch) {
+        const lat = parseFloat(atMatch[1]);
+        const lng = parseFloat(atMatch[2]);
+        await updateMapPosition(lat, lng, true);
+        setIsSearching(false);
+        return;
+      }
+
+      // Otherwise standard geocoding search
+      const fullSearch =
         roomDestination && !query.toLowerCase().includes(roomDestination.toLowerCase())
           ? `${query}, ${roomDestination}`
           : query;
 
-      const geocodeResults = await Location.geocodeAsync(fullQuery);
-
-      if (!geocodeResults || geocodeResults.length === 0) {
-        // Fallback to searching without room destination
-        const fallbackResults = await Location.geocodeAsync(query);
-        if (!fallbackResults || fallbackResults.length === 0) {
-          Alert.alert(
-            'Location Not Found',
-            `Could not find "${query}". Try adding a city name or landmark (e.g. "${query}, ${roomDestination || 'Paris'}").`
-          );
-          setIsSearching(false);
-          return;
-        }
-        processGeocodeResults(fallbackResults, query);
-      } else {
-        processGeocodeResults(geocodeResults, query);
+      let results = await Location.geocodeAsync(fullSearch);
+      if (!results || results.length === 0) {
+        results = await Location.geocodeAsync(query);
       }
-    } catch (err: any) {
-      console.warn('Geocoding error:', err);
-      Alert.alert('Search Failed', 'Could not search location. Please check spelling or connectivity.');
+
+      if (results && results.length > 0) {
+        const { latitude: lat, longitude: lng } = results[0];
+        setName(query);
+        await updateMapPosition(lat, lng, true);
+      } else {
+        Alert.alert(
+          'Location Not Found',
+          `Could not locate "${query}". Try tapping directly on the map to pick the exact spot.`
+        );
+      }
+    } catch (err) {
+      Alert.alert('Search Error', 'Could not search location. Please try tapping on the map.');
     } finally {
       setIsSearching(false);
     }
   };
 
-  const processGeocodeResults = async (
-    results: Location.LocationGeocodedLocation[],
-    queryTitle: string
-  ) => {
-    const topCandidates: LocationSearchResult[] = [];
-
-    // Limit to top 4 results
-    const slices = results.slice(0, 4);
-    for (const res of slices) {
-      let resolvedAddress = '';
-      let resolvedName = queryTitle;
-      let city = '';
-      let country = '';
-
-      try {
-        const reverse = await Location.reverseGeocodeAsync({
-          latitude: res.latitude,
-          longitude: res.longitude,
-        });
-
-        if (reverse && reverse.length > 0) {
-          const info = reverse[0];
-          resolvedName = info.name || info.street || queryTitle;
-          city = info.city || info.region || '';
-          country = info.country || '';
-          const parts = [info.street, info.district, info.city, info.country].filter(Boolean);
-          resolvedAddress = parts.join(', ');
-        }
-      } catch (e) {}
-
-      topCandidates.push({
-        name: resolvedName,
-        address: resolvedAddress || `${res.latitude.toFixed(4)}, ${res.longitude.toFixed(4)}`,
-        latitude: res.latitude,
-        longitude: res.longitude,
-        city,
-        country,
-      });
-    }
-
-    setSearchResults(topCandidates);
-
-    // Auto-select if single precise result
-    if (topCandidates.length === 1) {
-      handleSelectSearchResult(topCandidates[0]);
-    }
-  };
-
-  /** Select a candidate location from search results */
-  const handleSelectSearchResult = (item: LocationSearchResult) => {
-    setName(item.name);
-    if (item.address) setAddress(item.address);
-    setLatitude(item.latitude.toFixed(6));
-    setLongitude(item.longitude.toFixed(6));
-    setSelectedLocationSource(`Google Maps: ${item.name} (${item.latitude.toFixed(4)}, ${item.longitude.toFixed(4)})`);
-    setSearchResults([]);
-  };
-
-  /** Parse coordinates from pasted Google Maps link or raw coordinates string */
-  const handleParseMapsLink = async () => {
-    const raw = mapsLinkInput.trim();
-    if (!raw) {
-      Alert.alert('Empty Input', 'Please paste a Google Maps link or latitude, longitude coordinate.');
-      return;
-    }
-
-    try {
-      setIsParsingLink(true);
-
-      // Check 1: Raw coordinate pair (e.g. "15.5491, 73.7535" or "15.5491 73.7535")
-      const coordMatch = raw.match(/(-?\d+\.\d+)[\s,]+(-?\d+\.\d+)/);
-      if (coordMatch) {
-        const lat = parseFloat(coordMatch[1]);
-        const lng = parseFloat(coordMatch[2]);
-        await applyCoords(lat, lng, 'Pasted Coordinates');
-        setIsParsingLink(false);
-        return;
-      }
-
-      // Check 2: Google Maps @lat,lng (e.g. google.com/maps/@15.5491,73.7535,15z)
-      const atMatch = raw.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
-      if (atMatch) {
-        const lat = parseFloat(atMatch[1]);
-        const lng = parseFloat(atMatch[2]);
-        await applyCoords(lat, lng, 'Google Maps URL');
-        setIsParsingLink(false);
-        return;
-      }
-
-      // Check 3: Query param q=lat,lng (e.g. google.com/maps?q=15.5491,73.7535)
-      const qCoordMatch = raw.match(/[?&]q=(-?\d+\.\d+),(-?\d+\.\d+)/);
-      if (qCoordMatch) {
-        const lat = parseFloat(qCoordMatch[1]);
-        const lng = parseFloat(qCoordMatch[2]);
-        await applyCoords(lat, lng, 'Google Maps URL');
-        setIsParsingLink(false);
-        return;
-      }
-
-      // Check 4: Query param with place name (e.g. google.com/maps/search/La+Favela+Bali)
-      const searchMatch = raw.match(/maps\/(?:search|place)\/([^/?]+)/);
-      if (searchMatch) {
-        const decodedQuery = decodeURIComponent(searchMatch[1].replace(/\+/g, ' '));
-        await handleSearchLocation(decodedQuery);
-        setIsParsingLink(false);
-        return;
-      }
-
-      // Fallback: If it's a short URL or raw place name, try geocoding it
-      await handleSearchLocation(raw);
-    } catch (err: any) {
-      Alert.alert('Could Not Parse Link', 'Please provide a valid Google Maps link or coordinates.');
-    } finally {
-      setIsParsingLink(false);
-    }
-  };
-
-  const applyCoords = async (lat: number, lng: number, sourceLabel: string) => {
-    setLatitude(lat.toFixed(6));
-    setLongitude(lng.toFixed(6));
-    setSelectedLocationSource(`${sourceLabel}: ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
-
-    try {
-      const reverse = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
-      if (reverse && reverse.length > 0) {
-        const info = reverse[0];
-        if (!name && (info.name || info.street)) {
-          setName(info.name || info.street || '');
-        }
-        const full = [info.street, info.district, info.city, info.country].filter(Boolean).join(', ');
-        if (!address && full) {
-          setAddress(full);
-        }
-      }
-    } catch (e) {}
-  };
-
-  /** Paste from clipboard shortcut */
-  const handlePasteClipboard = async () => {
-    try {
-      const text = await Clipboard.getStringAsync();
-      if (text) {
-        setMapsLinkInput(text.trim());
-      }
-    } catch (e) {}
-  };
-
-  /** Use Current GPS Location */
+  /** "My GPS" quick shortcut */
   const handleUseCurrentLocation = async () => {
     try {
       setIsLocating(true);
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert(
-          'Location Permission Required',
-          'Please grant location permissions to auto-detect your current spot.'
-        );
+        Alert.alert('Permission Needed', 'Location permission is required to detect your GPS spot.');
         setIsLocating(false);
         return;
       }
@@ -298,39 +265,35 @@ export const AddPlaceModal: React.FC<AddPlaceModalProps> = ({
         accuracy: Location.Accuracy.Balanced,
       });
 
-      const lat = position.coords.latitude;
-      const lng = position.coords.longitude;
-      await applyCoords(lat, lng, 'Current GPS Spot');
+      await updateMapPosition(position.coords.latitude, position.coords.longitude, true);
     } catch (err: any) {
-      Alert.alert('GPS Error', err.message || 'Could not detect current location.');
+      Alert.alert('GPS Error', err.message || 'Could not find current location.');
     } finally {
       setIsLocating(false);
     }
   };
 
-  /** Open Google Maps to browse and share */
-  const handleOpenGoogleMapsApp = () => {
-    const url = roomDestination
-      ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(roomDestination)}`
-      : 'https://www.google.com/maps';
-    Linking.openURL(url).catch(() => {
-      Alert.alert('Error', 'Could not open Google Maps.');
-    });
+  /** Paste link shortcut from clipboard */
+  const handlePasteLink = async () => {
+    try {
+      const text = await Clipboard.getStringAsync();
+      if (text) {
+        setSearchQuery(text.trim());
+      }
+    } catch (e) {}
   };
 
+  /** Submit & Pin Spot */
   const handleSubmit = async () => {
     if (!name.trim()) {
-      Alert.alert('Missing Name', 'Please provide a name for this place.');
+      Alert.alert('Missing Name', 'Please give this spot a name (e.g. "Sunset Point").');
       return;
     }
 
-    const latNum = parseFloat(latitude);
-    const lngNum = parseFloat(longitude);
-
-    if (isNaN(latNum) || isNaN(lngNum)) {
+    if (!selectedCoords) {
       Alert.alert(
-        'Location Required',
-        'Please search for a location on Google Maps or provide coordinates so everyone can navigate to it.'
+        'Pick on Map',
+        'Please tap on the map or search to choose where this spot is located.'
       );
       return;
     }
@@ -339,15 +302,15 @@ export const AddPlaceModal: React.FC<AddPlaceModalProps> = ({
       setIsSubmitting(true);
       const res = await api.post(`/rooms/${roomId}/places`, {
         name: name.trim(),
-        category,
+        category: category || 'other',
         address: address.trim(),
         description: description.trim(),
-        latitude: latNum,
-        longitude: lngNum,
+        latitude: selectedCoords.latitude,
+        longitude: selectedCoords.longitude,
       });
 
       const savedPlace: SavedPlace = res.data?.data?.place || res.data?.place;
-      Alert.alert('Spot Saved! 📍', `"${name.trim()}" has been pinned to the trip.`);
+      Alert.alert('Spot Pinned! 📍', `"${name.trim()}" has been saved to the trip.`);
       resetForm();
       onClose();
       if (savedPlace) {
@@ -380,9 +343,9 @@ export const AddPlaceModal: React.FC<AddPlaceModalProps> = ({
                 <Ionicons name="map" size={18} color="#C96A25" />
               </View>
               <View>
-                <Text style={styles.sheetTitle}>Pin Any Spot on Google Maps</Text>
+                <Text style={styles.sheetTitle}>Pin Spot on Map</Text>
                 <Text style={styles.sheetSubtitle}>
-                  {roomDestination ? `Explore & save spots in ${roomDestination}` : 'Find cafes, beaches, sights & hotels'}
+                  Tap anywhere on the map or search to choose a location
                 </Text>
               </View>
             </View>
@@ -395,235 +358,126 @@ export const AddPlaceModal: React.FC<AddPlaceModalProps> = ({
             </TouchableOpacity>
           </View>
 
-          {/* Mode Selector Tabs */}
-          <View style={styles.modeTabBar}>
-            <TouchableOpacity
-              style={[styles.modeTab, activeMode === 'search' && styles.modeTabActive]}
-              onPress={() => setActiveMode('search')}
-              activeOpacity={0.75}
-            >
-              <Ionicons
-                name="search"
-                size={14}
-                color={activeMode === 'search' ? Colors.rooms.forestGreen : Colors.rooms.mutedText}
-              />
-              <Text
-                style={[
-                  styles.modeTabText,
-                  activeMode === 'search' && styles.modeTabTextActive,
-                ]}
-              >
-                Search Any Place
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.modeTab, activeMode === 'link' && styles.modeTabActive]}
-              onPress={() => setActiveMode('link')}
-              activeOpacity={0.75}
-            >
-              <MaterialCommunityIcons
-                name="google-maps"
-                size={16}
-                color={activeMode === 'link' ? '#C96A25' : Colors.rooms.mutedText}
-              />
-              <Text
-                style={[
-                  styles.modeTabText,
-                  activeMode === 'link' && styles.modeTabTextActive,
-                ]}
-              >
-                Maps Link / Coords
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.modeTab, activeMode === 'gps' && styles.modeTabActive]}
-              onPress={() => {
-                setActiveMode('gps');
-                handleUseCurrentLocation();
-              }}
-              activeOpacity={0.75}
-            >
-              <Ionicons
-                name="navigate"
-                size={14}
-                color={activeMode === 'gps' ? Colors.rooms.forestGreen : Colors.rooms.mutedText}
-              />
-              <Text
-                style={[
-                  styles.modeTabText,
-                  activeMode === 'gps' && styles.modeTabTextActive,
-                ]}
-              >
-                My GPS
-              </Text>
-            </TouchableOpacity>
-          </View>
-
           <ScrollView
             style={styles.formScroll}
             contentContainerStyle={styles.formScrollContent}
             showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
           >
-            {/* MODE 1: Search Any Place Worldwide */}
-            {activeMode === 'search' && (
-              <View style={styles.searchSection}>
-                <View style={styles.searchRow}>
-                  <TextInput
-                    style={styles.searchInput}
-                    placeholder="Search cafe, beach, temple, hotel..."
-                    placeholderTextColor={Colors.rooms.mutedText}
-                    value={searchQuery}
-                    onChangeText={setSearchQuery}
-                    onSubmitEditing={() => handleSearchLocation()}
-                    returnKeyType="search"
-                  />
+            {/* Unified Clean Search Bar (NO clutter tabs!) */}
+            <View style={styles.searchBarWrapper}>
+              <View style={styles.searchBarContainer}>
+                <Ionicons name="search" size={16} color={Colors.rooms.mutedText} />
+                <TextInput
+                  style={styles.searchBarInput}
+                  placeholder="Search place, beach, cafe or paste link..."
+                  placeholderTextColor={Colors.rooms.mutedText}
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  onSubmitEditing={handleSearchOrLink}
+                  returnKeyType="search"
+                />
+                {searchQuery.length === 0 ? (
+                  <TouchableOpacity
+                    style={styles.pasteIconBtn}
+                    onPress={handlePasteLink}
+                    hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                  >
+                    <Feather name="clipboard" size={13} color={Colors.rooms.mutedText} />
+                  </TouchableOpacity>
+                ) : (
                   <TouchableOpacity
                     style={styles.searchSubmitBtn}
-                    onPress={() => handleSearchLocation()}
+                    onPress={handleSearchOrLink}
                     disabled={isSearching}
-                    activeOpacity={0.8}
                   >
                     {isSearching ? (
                       <ActivityIndicator size="small" color="#FFFDF9" />
                     ) : (
-                      <Ionicons name="search" size={17} color="#FFFDF9" />
+                      <Text style={styles.searchSubmitBtnText}>Go</Text>
                     )}
                   </TouchableOpacity>
-                </View>
-
-                {/* Candidate Search Results */}
-                {searchResults.length > 0 && (
-                  <View style={styles.searchResultsContainer}>
-                    <Text style={styles.searchResultsTitle}>Pick from Google Maps matches:</Text>
-                    {searchResults.map((item, idx) => (
-                      <TouchableOpacity
-                        key={idx}
-                        style={styles.searchResultItem}
-                        onPress={() => handleSelectSearchResult(item)}
-                        activeOpacity={0.75}
-                      >
-                        <Ionicons name="location" size={16} color="#C96A25" style={styles.resPin} />
-                        <View style={styles.resTextCol}>
-                          <Text style={styles.resItemName} numberOfLines={1}>
-                            {item.name}
-                          </Text>
-                          {item.address ? (
-                            <Text style={styles.resItemAddress} numberOfLines={1}>
-                              {item.address}
-                            </Text>
-                          ) : null}
-                        </View>
-                        <Feather name="chevron-right" size={14} color={Colors.rooms.mutedText} />
-                      </TouchableOpacity>
-                    ))}
-                  </View>
                 )}
               </View>
-            )}
+            </View>
 
-            {/* MODE 2: Paste Google Maps Link or Coords */}
-            {activeMode === 'link' && (
-              <View style={styles.linkSection}>
-                <View style={styles.linkInputRow}>
-                  <TextInput
-                    style={styles.linkInput}
-                    placeholder="Paste maps.app.goo.gl link or 15.54, 73.75..."
-                    placeholderTextColor={Colors.rooms.mutedText}
-                    value={mapsLinkInput}
-                    onChangeText={setMapsLinkInput}
-                    autoCapitalize="none"
-                    autoCorrect={false}
+            {/* Interactive Map Picker Container */}
+            <View style={styles.mapCard}>
+              <MapView
+                ref={mapRef}
+                style={styles.map}
+                region={region}
+                onPress={handleMapPress}
+              >
+                {selectedCoords && (
+                  <Marker
+                    coordinate={selectedCoords}
+                    draggable
+                    onDragEnd={(e) => {
+                      const { latitude: lat, longitude: lng } = e.nativeEvent.coordinate;
+                      updateMapPosition(lat, lng, true);
+                    }}
+                    title={name || 'Selected Spot'}
+                    description={address || 'Tap to save'}
                   />
-                  <TouchableOpacity
-                    style={styles.pasteIconBtn}
-                    onPress={handlePasteClipboard}
-                    activeOpacity={0.7}
-                  >
-                    <Feather name="clipboard" size={15} color={Colors.rooms.forestGreen} />
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.parseBtn}
-                    onPress={handleParseMapsLink}
-                    disabled={isParsingLink}
-                    activeOpacity={0.8}
-                  >
-                    {isParsingLink ? (
-                      <ActivityIndicator size="small" color="#FFFDF9" />
-                    ) : (
-                      <Text style={styles.parseBtnText}>Locate</Text>
-                    )}
-                  </TouchableOpacity>
-                </View>
+                )}
+              </MapView>
 
-                <TouchableOpacity
-                  style={styles.openGoogleMapsBtn}
-                  onPress={handleOpenGoogleMapsApp}
-                  activeOpacity={0.8}
-                >
-                  <MaterialCommunityIcons name="google-maps" size={16} color="#C96A25" />
-                  <Text style={styles.openGoogleMapsText}>
-                    Open Google Maps App to copy place link
-                  </Text>
-                  <Feather name="external-link" size={12} color="#C96A25" />
-                </TouchableOpacity>
+              {/* Floating Helper Banner on top of Map */}
+              <View style={styles.mapOverlayPill}>
+                <Ionicons name="finger-print" size={12} color="#FFFFFF" />
+                <Text style={styles.mapOverlayText}>
+                  {selectedCoords
+                    ? 'Spot selected · Tap anywhere or drag pin to adjust'
+                    : 'Tap anywhere on the map to drop pin'}
+                </Text>
               </View>
-            )}
 
-            {/* MODE 3: GPS Status banner */}
-            {activeMode === 'gps' && (
-              <View style={styles.gpsBanner}>
+              {/* "My GPS" Floating Button inside Map */}
+              <TouchableOpacity
+                style={styles.floatingGpsBtn}
+                onPress={handleUseCurrentLocation}
+                disabled={isLocating}
+                activeOpacity={0.8}
+              >
                 {isLocating ? (
                   <ActivityIndicator size="small" color={Colors.rooms.forestGreen} />
                 ) : (
-                  <Ionicons name="navigate-circle" size={20} color={Colors.rooms.forestGreen} />
+                  <Ionicons name="locate" size={18} color={Colors.rooms.forestGreen} />
                 )}
-                <Text style={styles.gpsBannerText}>
-                  {isLocating ? 'Detecting your GPS location...' : 'Current GPS location applied'}
-                </Text>
-                <TouchableOpacity
-                  style={styles.reLocateBtn}
-                  onPress={handleUseCurrentLocation}
-                  disabled={isLocating}
-                >
-                  <Text style={styles.reLocateBtnText}>Refresh</Text>
-                </TouchableOpacity>
-              </View>
-            )}
+              </TouchableOpacity>
+            </View>
 
-            {/* Location Source / Coordinates Confirmation Tag */}
-            {latitude && longitude ? (
-              <View style={styles.locationConfirmedBox}>
-                <Ionicons name="checkmark-circle" size={16} color={Colors.rooms.forestGreen} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.locationConfirmedTitle}>
-                    Coordinates Set: {latitude}, {longitude}
-                  </Text>
-                  {selectedLocationSource ? (
-                    <Text style={styles.locationConfirmedSubtitle} numberOfLines={1}>
-                      {selectedLocationSource}
-                    </Text>
-                  ) : null}
-                </View>
-              </View>
-            ) : null}
-
-            {/* Place Name */}
+            {/* Place Name (Clean & Auto-filled from Map) */}
             <View style={styles.fieldGroup}>
-              <Text style={styles.fieldLabel}>Place Name *</Text>
+              <Text style={styles.fieldLabel}>Spot Name *</Text>
               <TextInput
                 style={styles.textInput}
-                placeholder="e.g. Cafe del Mar, Uluwatu Cliff, Secret Beach"
+                placeholder="e.g. Uluwatu Cliff, Secret Sunset Cafe"
                 placeholderTextColor={Colors.rooms.mutedText}
                 value={name}
                 onChangeText={setName}
               />
             </View>
 
-            {/* Category Selector */}
+            {/* Address / Landmark (Auto-filled from Map) */}
             <View style={styles.fieldGroup}>
-              <Text style={styles.fieldLabel}>Category</Text>
+              <Text style={styles.fieldLabel}>Address / Landmark</Text>
+              <TextInput
+                style={styles.textInput}
+                placeholder="Auto-filled when you tap on the map"
+                placeholderTextColor={Colors.rooms.mutedText}
+                value={address}
+                onChangeText={setAddress}
+              />
+            </View>
+
+            {/* Category Selector (DEFAULTS TO 'OTHER') */}
+            <View style={styles.fieldGroup}>
+              <View style={styles.labelRow}>
+                <Text style={styles.fieldLabel}>Category</Text>
+                <Text style={styles.subtleDefaultLabel}>(Defaults to Other)</Text>
+              </View>
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
@@ -646,7 +500,7 @@ export const AddPlaceModal: React.FC<AddPlaceModalProps> = ({
                     >
                       <MaterialCommunityIcons
                         name={cat.icon as any}
-                        size={16}
+                        size={15}
                         color={isSelected ? cat.color : Colors.rooms.mutedText}
                       />
                       <Text
@@ -663,27 +517,15 @@ export const AddPlaceModal: React.FC<AddPlaceModalProps> = ({
               </ScrollView>
             </View>
 
-            {/* Address */}
-            <View style={styles.fieldGroup}>
-              <Text style={styles.fieldLabel}>Address / Landmark</Text>
-              <TextInput
-                style={styles.textInput}
-                placeholder="e.g. 14 Sunset Blvd, Seminyak"
-                placeholderTextColor={Colors.rooms.mutedText}
-                value={address}
-                onChangeText={setAddress}
-              />
-            </View>
-
             {/* Notes / Tips */}
             <View style={styles.fieldGroup}>
-              <Text style={styles.fieldLabel}>Traveler Notes & Tips (optional)</Text>
+              <Text style={styles.fieldLabel}>Notes / Tips (optional)</Text>
               <TextInput
                 style={[styles.textInput, styles.textArea]}
-                placeholder="Reservation required, dress code, best sunset timing, must-try food..."
+                placeholder="Opening hours, dress code, reservation notes, must-try food..."
                 placeholderTextColor={Colors.rooms.mutedText}
                 multiline
-                numberOfLines={3}
+                numberOfLines={2}
                 value={description}
                 onChangeText={setDescription}
               />
@@ -700,9 +542,12 @@ export const AddPlaceModal: React.FC<AddPlaceModalProps> = ({
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.saveBtn, isSubmitting && styles.saveBtnDisabled]}
+                style={[
+                  styles.saveBtn,
+                  (!name.trim() || !selectedCoords || isSubmitting) && styles.saveBtnDisabled,
+                ]}
                 onPress={handleSubmit}
-                disabled={isSubmitting}
+                disabled={!name.trim() || !selectedCoords || isSubmitting}
                 activeOpacity={0.8}
               >
                 {isSubmitting ? (
@@ -725,7 +570,7 @@ export const AddPlaceModal: React.FC<AddPlaceModalProps> = ({
 const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(36, 60, 50, 0.5)',
+    backgroundColor: 'rgba(36, 60, 50, 0.55)',
     justifyContent: 'flex-end',
   },
   sheetContainer: {
@@ -735,7 +580,7 @@ const styles = StyleSheet.create({
     paddingTop: 18,
     paddingHorizontal: 20,
     paddingBottom: Platform.OS === 'ios' ? 34 : 20,
-    maxHeight: '92%',
+    maxHeight: '94%',
     borderWidth: 1,
     borderColor: '#E8D9C8',
   },
@@ -743,8 +588,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 14,
-    paddingBottom: 12,
+    marginBottom: 12,
+    paddingBottom: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#EADBCB',
   },
@@ -755,8 +600,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   headerIconCircle: {
-    width: 38,
-    height: 38,
+    width: 36,
+    height: 36,
     borderRadius: 12,
     backgroundColor: '#FDF0E5',
     alignItems: 'center',
@@ -770,51 +615,17 @@ const styles = StyleSheet.create({
     color: Colors.rooms.forestGreen,
   },
   sheetSubtitle: {
-    fontSize: 12,
+    fontSize: 11.5,
     color: Colors.rooms.mutedText,
-    marginTop: 2,
+    marginTop: 1,
   },
   closeBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     backgroundColor: '#EBE2D5',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  modeTabBar: {
-    flexDirection: 'row',
-    backgroundColor: '#EBE3D7',
-    borderRadius: 12,
-    padding: 3,
-    marginBottom: 14,
-    gap: 4,
-  },
-  modeTab: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 5,
-    paddingVertical: 8,
-    borderRadius: 9,
-  },
-  modeTabActive: {
-    backgroundColor: '#FFFDF9',
-    shadowColor: '#3F2C18',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  modeTabText: {
-    fontSize: 11.5,
-    fontWeight: '600',
-    color: Colors.rooms.mutedText,
-  },
-  modeTabTextActive: {
-    color: Colors.rooms.darkText,
-    fontWeight: '700',
   },
   formScroll: {
     flexGrow: 0,
@@ -822,173 +633,102 @@ const styles = StyleSheet.create({
   formScrollContent: {
     paddingBottom: 16,
   },
-  searchSection: {
-    marginBottom: 12,
+  searchBarWrapper: {
+    marginBottom: 10,
   },
-  searchRow: {
+  searchBarContainer: {
     flexDirection: 'row',
+    alignItems: 'center',
     gap: 8,
-  },
-  searchInput: {
-    flex: 1,
     backgroundColor: '#FFFDF9',
-    borderWidth: 1.5,
-    borderColor: '#DFD2C2',
     borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    fontSize: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderWidth: 1.5,
+    borderColor: '#E0D2C1',
+  },
+  searchBarInput: {
+    flex: 1,
+    fontSize: 13,
     color: Colors.rooms.darkText,
+    padding: 0,
+  },
+  pasteIconBtn: {
+    padding: 4,
   },
   searchSubmitBtn: {
     backgroundColor: Colors.rooms.forestGreen,
-    borderRadius: 12,
-    width: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
   },
-  searchResultsContainer: {
-    backgroundColor: '#FFFDF9',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E2D5C3',
-    marginTop: 8,
-    padding: 8,
-  },
-  searchResultsTitle: {
+  searchSubmitBtnText: {
+    color: '#FFFDF9',
     fontSize: 11,
     fontWeight: '700',
-    color: Colors.rooms.mutedText,
-    marginBottom: 6,
-    paddingHorizontal: 4,
-    textTransform: 'uppercase',
   },
-  searchResultItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 8,
-    borderRadius: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F4ECE1',
-  },
-  resPin: {
-    marginRight: 8,
-  },
-  resTextCol: {
-    flex: 1,
-    marginRight: 6,
-  },
-  resItemName: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: Colors.rooms.darkText,
-  },
-  resItemAddress: {
-    fontSize: 11,
-    color: Colors.rooms.mutedText,
-    marginTop: 1,
-  },
-  linkSection: {
-    marginBottom: 12,
-  },
-  linkInputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  linkInput: {
-    flex: 1,
-    backgroundColor: '#FFFDF9',
+  mapCard: {
+    height: 190,
+    borderRadius: 16,
+    overflow: 'hidden',
     borderWidth: 1.5,
     borderColor: '#DFD2C2',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 13,
-    color: Colors.rooms.darkText,
+    marginBottom: 14,
+    position: 'relative',
+    backgroundColor: '#EAE1D3',
   },
-  pasteIconBtn: {
-    backgroundColor: '#EBE2D5',
-    padding: 10,
-    borderRadius: 10,
+  map: {
+    width: '100%',
+    height: '100%',
   },
-  parseBtn: {
-    backgroundColor: '#C96A25',
-    paddingHorizontal: 14,
-    paddingVertical: 11,
-    borderRadius: 10,
-  },
-  parseBtnText: {
-    color: '#FFFDF9',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  openGoogleMapsBtn: {
+  mapOverlayPill: {
+    position: 'absolute',
+    top: 10,
+    alignSelf: 'center',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginTop: 8,
-    paddingVertical: 4,
-  },
-  openGoogleMapsText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#C96A25',
-  },
-  gpsBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: '#EDF5EF',
+    backgroundColor: 'rgba(36, 60, 50, 0.82)',
     paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 12,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#D4E7D8',
-  },
-  gpsBannerText: {
-    flex: 1,
-    fontSize: 12.5,
-    fontWeight: '600',
-    color: Colors.rooms.forestGreen,
-  },
-  reLocateBtn: {
-    backgroundColor: Colors.rooms.forestGreen,
-    paddingHorizontal: 10,
     paddingVertical: 5,
-    borderRadius: 8,
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  reLocateBtnText: {
+  mapOverlayText: {
     color: '#FFFDF9',
-    fontSize: 11,
+    fontSize: 10.5,
     fontWeight: '700',
   },
-  locationConfirmedBox: {
-    flexDirection: 'row',
+  floatingGpsBtn: {
+    position: 'absolute',
+    right: 12,
+    bottom: 12,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#FFFDF9',
     alignItems: 'center',
-    gap: 8,
-    backgroundColor: '#EAF5EC',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    marginBottom: 14,
+    justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#C7E4CB',
-  },
-  locationConfirmedTitle: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: Colors.rooms.forestGreen,
-  },
-  locationConfirmedSubtitle: {
-    fontSize: 11,
-    color: '#3B6B46',
-    marginTop: 1,
+    borderColor: '#DFD2C2',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 4,
   },
   fieldGroup: {
     marginBottom: 12,
+  },
+  labelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
   },
   fieldLabel: {
     fontSize: 11.5,
@@ -998,6 +738,11 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
+  subtleDefaultLabel: {
+    fontSize: 10.5,
+    color: Colors.rooms.mutedText,
+    fontStyle: 'italic',
+  },
   textInput: {
     backgroundColor: '#FFFDF9',
     borderWidth: 1,
@@ -1005,11 +750,11 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 10,
-    fontSize: 14,
+    fontSize: 13.5,
     color: Colors.rooms.darkText,
   },
   textArea: {
-    height: 65,
+    height: 55,
     textAlignVertical: 'top',
   },
   categoryScroll: {
@@ -1019,23 +764,23 @@ const styles = StyleSheet.create({
   categoryChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 5,
     backgroundColor: '#FFFDF9',
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 7,
     borderRadius: 10,
     borderWidth: 1,
     borderColor: '#E0D2C1',
   },
   categoryChipText: {
-    fontSize: 12,
+    fontSize: 11.5,
     fontWeight: '600',
     color: Colors.rooms.mutedText,
   },
   buttonRow: {
     flexDirection: 'row',
     gap: 12,
-    marginTop: 8,
+    marginTop: 6,
   },
   cancelBtn: {
     flex: 1,
@@ -1065,7 +810,7 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   saveBtnDisabled: {
-    opacity: 0.6,
+    opacity: 0.5,
   },
   saveBtnContent: {
     flexDirection: 'row',
