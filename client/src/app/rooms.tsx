@@ -7,9 +7,10 @@ import {
   ActivityIndicator,
   Text,
   RefreshControl,
+  TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter, useFocusEffect } from 'expo-router';
+import { useRouter, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../constants/theme';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
@@ -17,6 +18,8 @@ import api from '../services/api';
 import { RoomsHeader, RoomTab } from '../components/rooms/RoomsHeader';
 import { RoomCard, RoomData } from '../components/rooms/RoomCard';
 import { CreateRoomCard } from '../components/rooms/CreateRoomCard';
+import { JoinRoomCard } from '../components/rooms/JoinRoomCard';
+import { JoinRoomModal } from '../components/rooms/JoinRoomModal';
 
 interface RoomsApiResponse {
   total: number;
@@ -28,6 +31,7 @@ interface RoomsApiResponse {
 export default function RoomsScreen() {
   const { user } = useAuth();
   const router = useRouter();
+  const params = useLocalSearchParams<{ joinCode?: string }>();
 
   const [activeTab, setActiveTab] = useState<RoomTab>('myRooms');
   const [rooms, setRooms] = useState<RoomsApiResponse>({
@@ -39,6 +43,15 @@ export default function RoomsScreen() {
   const [roomDetails, setRoomDetails] = useState<Record<string, RoomData>>({});
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [isJoinModalVisible, setIsJoinModalVisible] = useState(false);
+  const [joinInitialCode, setJoinInitialCode] = useState('');
+
+  useEffect(() => {
+    if (params.joinCode && params.joinCode.trim().length === 8) {
+      setJoinInitialCode(params.joinCode.trim().toUpperCase());
+      setIsJoinModalVisible(true);
+    }
+  }, [params.joinCode]);
 
   /** Fetch rooms list from GET /api/rooms */
   const fetchRooms = useCallback(async () => {
@@ -155,6 +168,17 @@ export default function RoomsScreen() {
     router.push('/create-room');
   };
 
+  const handleOpenJoinModal = (code: string = '') => {
+    setJoinInitialCode(code);
+    setIsJoinModalVisible(true);
+  };
+
+  const handleJoinedRoom = (roomId: string) => {
+    setIsJoinModalVisible(false);
+    fetchRooms();
+    router.push({ pathname: '/room/[id]', params: { id: roomId } } as any);
+  };
+
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <StatusBar barStyle="dark-content" backgroundColor={Colors.rooms.background} />
@@ -176,6 +200,7 @@ export default function RoomsScreen() {
           userName={user?.name || 'Traveler'}
           activeTab={activeTab}
           onTabChange={setActiveTab}
+          onOpenJoinModal={() => handleOpenJoinModal('')}
         />
 
         {/* Loading State */}
@@ -223,16 +248,34 @@ export default function RoomsScreen() {
                 ? 'Completed trips will appear here as a keepsake.'
                 : 'Create your first room to start planning a trip!'}
             </Text>
+            {activeTab === 'invites' && (
+              <TouchableOpacity
+                style={styles.emptyJoinBtn}
+                onPress={() => handleOpenJoinModal('')}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.emptyJoinBtnText}>Enter Invite Code</Text>
+              </TouchableOpacity>
+            )}
           </View>
         )}
 
-        {/* Create New Room CTA */}
+        {/* Create New Room & Join CTAs */}
         {activeTab === 'myRooms' && !loading && (
           <View style={styles.createRoomWrapper}>
             <CreateRoomCard onPress={handleCreateRoom} />
+            <JoinRoomCard onPress={() => handleOpenJoinModal('')} />
           </View>
         )}
       </ScrollView>
+
+      {/* Join Room Modal */}
+      <JoinRoomModal
+        visible={isJoinModalVisible}
+        initialCode={joinInitialCode}
+        onClose={() => setIsJoinModalVisible(false)}
+        onJoined={handleJoinedRoom}
+      />
     </SafeAreaView>
   );
 }
@@ -288,6 +331,18 @@ const styles = StyleSheet.create({
     color: Colors.rooms.mutedText,
     textAlign: 'center',
     lineHeight: 21,
+  },
+  emptyJoinBtn: {
+    marginTop: 16,
+    backgroundColor: '#C96A25',
+    paddingHorizontal: 20,
+    paddingVertical: 11,
+    borderRadius: 12,
+  },
+  emptyJoinBtnText: {
+    color: '#FFFDF9',
+    fontSize: 14,
+    fontWeight: '700',
   },
   createRoomWrapper: {
     marginTop: 'auto',

@@ -17,6 +17,7 @@ interface RoomsHeaderProps {
   userName: string;
   activeTab: RoomTab;
   onTabChange: (tab: RoomTab) => void;
+  onOpenJoinModal?: () => void;
 }
 
 /** Generates a deterministic color from a string */
@@ -33,6 +34,7 @@ export const RoomsHeader: React.FC<RoomsHeaderProps> = ({
   userName,
   activeTab,
   onTabChange,
+  onOpenJoinModal,
 }) => {
   const initials = userName
     .split(' ')
@@ -49,15 +51,27 @@ export const RoomsHeader: React.FC<RoomsHeaderProps> = ({
 
   return (
     <View style={styles.container}>
-      {/* Top bar: Brand Logo + Avatar */}
+      {/* Top bar: Brand Logo + Avatar & Join Button */}
       <View style={styles.topBar}>
         <Image
           source={require('../../../assets/images/roamie_brand_logo.png')}
           style={styles.brandLogo}
           resizeMode="contain"
         />
-        <View style={[styles.avatar, { backgroundColor: getInitialColor(userName) }]}>
-          <Text style={styles.avatarText}>{initials}</Text>
+        <View style={styles.topRightActions}>
+          {onOpenJoinModal && (
+            <TouchableOpacity
+              style={styles.joinPillBtn}
+              onPress={onOpenJoinModal}
+              activeOpacity={0.75}
+            >
+              <Text style={styles.joinPillIcon}>🔑</Text>
+              <Text style={styles.joinPillText}>Join</Text>
+            </TouchableOpacity>
+          )}
+          <View style={[styles.avatar, { backgroundColor: getInitialColor(userName) }]}>
+            <Text style={styles.avatarText}>{initials}</Text>
+          </View>
         </View>
       </View>
 
@@ -109,6 +123,30 @@ const styles = StyleSheet.create({
     height: 44,
     alignSelf: 'flex-start',
     marginLeft: -8,
+  },
+  topRightActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  joinPillBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#FAF5ED',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#E2D5C3',
+  },
+  joinPillIcon: {
+    fontSize: 13,
+  },
+  joinPillText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#C96A25',
   },
   avatar: {
     width: 42,
