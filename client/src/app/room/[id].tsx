@@ -20,6 +20,7 @@ import { AboutTab, RoomDetailsData } from '../../components/room/AboutTab';
 import { ChatTab } from '../../components/room/ChatTab';
 import { ExpensesTab } from '../../components/room/ExpensesTab';
 import { GalleryTab } from '../../components/room/GalleryTab';
+import { ItineraryTab } from '../../components/room/ItineraryTab';
 
 export default function RoomScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -114,13 +115,7 @@ export default function RoomScreen() {
         )}
 
         {activeTab === 'itinerary' && (
-          <View style={styles.placeholderContainer}>
-            <Text style={styles.placeholderEmoji}>🗓️</Text>
-            <Text style={styles.placeholderTitle}>Itinerary</Text>
-            <Text style={styles.placeholderSubtitle}>
-              Daily schedule, activities & reminders coming in the Itinerary step.
-            </Text>
-          </View>
+          <ItineraryTab data={roomData} onRefresh={fetchRoomDetails} />
         )}
 
         {activeTab === 'gallery' && (
