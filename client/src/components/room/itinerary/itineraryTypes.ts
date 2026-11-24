@@ -42,6 +42,15 @@ export interface ItineraryItem {
   updatedAt?: string;
 }
 
+export interface LocationSearchResult {
+  name: string;
+  address?: string;
+  latitude: number;
+  longitude: number;
+  country?: string;
+  city?: string;
+}
+
 export interface DayScheduleGroup {
   date: string;
   formattedDate: string;

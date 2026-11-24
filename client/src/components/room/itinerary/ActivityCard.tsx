@@ -6,8 +6,14 @@ import {
   TouchableOpacity,
   Vibration,
   Alert,
+  Linking,
+  Platform,
 } from 'react-native';
-import { Feather } from '@expo/vector-icons';
+import {
+  Feather,
+  Ionicons,
+  MaterialCommunityIcons,
+} from '@expo/vector-icons';
 import { Colors } from '../../../constants/theme';
 import { ItineraryItem, SavedPlace } from './itineraryTypes';
 
@@ -20,27 +26,34 @@ interface ActivityCardProps {
   onPlacePress?: (place: SavedPlace) => void;
 }
 
-const getCategoryIcon = (category?: string): string => {
+interface CategoryStyle {
+  iconName: string;
+  color: string;
+  bg: string;
+  label: string;
+}
+
+const getCategoryStyle = (category?: string): CategoryStyle => {
   switch (category?.toLowerCase()) {
     case 'food':
     case 'restaurant':
-      return '🍽️';
+      return { iconName: 'food-fork-drink', color: '#C96A25', bg: '#FDF3E7', label: 'Dining' };
     case 'beach':
-      return '🏖️';
+      return { iconName: 'beach', color: '#0284C7', bg: '#E0F2FE', label: 'Beach' };
     case 'stay':
     case 'hotel':
-      return '🏨';
+      return { iconName: 'bed-king', color: '#243C32', bg: '#EDF5EF', label: 'Stay' };
     case 'nightlife':
     case 'drinks':
-      return '🍸';
+      return { iconName: 'glass-cocktail', color: '#9333EA', bg: '#F3E8FF', label: 'Nightlife' };
     case 'activity':
     case 'activities':
-      return '🎯';
+      return { iconName: 'hiking', color: '#059669', bg: '#D1FAE5', label: 'Adventure' };
     case 'sights':
     case 'sightseeing':
-      return '🏛️';
+      return { iconName: 'camera-iris', color: '#B45309', bg: '#FEF3C7', label: 'Sights' };
     default:
-      return '📍';
+      return { iconName: 'map-marker-radius', color: '#64748B', bg: '#F1F5F9', label: 'Spot' };
   }
 };
 
@@ -60,6 +73,7 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
 }) => {
   const isCompleted = item.isCompleted;
   const linkedPlace = item.placeId as SavedPlace | undefined;
+  const catStyle = getCategoryStyle(linkedPlace?.category);
 
   const handleToggle = () => {
     try {
@@ -83,34 +97,88 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
     );
   };
 
+  const handleOpenMaps = (place: SavedPlace) => {
+    const lat = place.latitude;
+    const lng = place.longitude;
+    const label = encodeURIComponent(place.name);
+
+    const url =
+      Platform.OS === 'ios'
+        ? `maps:0,0?q=${label}@${lat},${lng}`
+        : `geo:${lat},${lng}?q=${lat},${lng}(${label})`;
+
+    const webFallbackUrl = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+
+    Linking.canOpenURL(url)
+      .then((supported) => {
+        if (supported) {
+          Linking.openURL(url);
+        } else {
+          Linking.openURL(webFallbackUrl);
+        }
+      })
+      .catch(() => {
+        Linking.openURL(webFallbackUrl);
+      });
+  };
+
   return (
     <View style={[styles.card, isCompleted && styles.completedCard]}>
-      {/* Left Column: Completion Checkbox & Time indicator */}
+      {/* Category color accent bar on left */}
+      <View
+        style={[
+          styles.categoryStripe,
+          { backgroundColor: isCompleted ? '#C5D6C5' : catStyle.color },
+        ]}
+      />
+
+      {/* Checkbox column */}
       <View style={styles.leftColumn}>
         <TouchableOpacity
           style={[styles.checkbox, isCompleted && styles.checkedCheckbox]}
           onPress={handleToggle}
           activeOpacity={0.75}
         >
-          {isCompleted && <Feather name="check" size={14} color="#FFFFFF" />}
+          {isCompleted ? (
+            <Ionicons name="checkmark-sharp" size={14} color="#FFFFFF" />
+          ) : (
+            <View style={styles.uncheckedInner} />
+          )}
         </TouchableOpacity>
       </View>
 
       {/* Main Content Column */}
       <View style={styles.contentColumn}>
-        {/* Top Meta Row: Time & Reminder */}
+        {/* Top Meta Row: Time, Category Badge, Reminder, Actions */}
         <View style={styles.topMetaRow}>
-          <View style={styles.timePill}>
-            <Feather name="clock" size={12} color={isCompleted ? Colors.rooms.mutedText : Colors.rooms.forestGreen} />
+          <View style={[styles.timePill, isCompleted && styles.completedTimePill]}>
+            <MaterialCommunityIcons
+              name="clock-time-four-outline"
+              size={12}
+              color={isCompleted ? Colors.rooms.mutedText : Colors.rooms.forestGreen}
+            />
             <Text style={[styles.timeText, isCompleted && styles.completedTimeText]}>
               {formatTimeRange(item.startTime, item.endTime)}
             </Text>
           </View>
 
+          {linkedPlace && (
+            <View style={[styles.categoryBadge, { backgroundColor: catStyle.bg }]}>
+              <MaterialCommunityIcons
+                name={catStyle.iconName as any}
+                size={11}
+                color={catStyle.color}
+              />
+              <Text style={[styles.categoryBadgeText, { color: catStyle.color }]}>
+                {catStyle.label}
+              </Text>
+            </View>
+          )}
+
           {item.reminderMinutesBefore ? (
             <View style={styles.reminderPill}>
-              <Feather name="bell" size={11} color="#C96A25" />
-              <Text style={styles.reminderText}>{item.reminderMinutesBefore}m before</Text>
+              <Feather name="bell" size={10} color="#C96A25" />
+              <Text style={styles.reminderText}>{item.reminderMinutesBefore}m</Text>
             </View>
           ) : null}
 
@@ -122,14 +190,14 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
                 onPress={() => onEdit(item)}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               >
-                <Feather name="edit-2" size={14} color={Colors.rooms.mutedText} />
+                <Feather name="edit-2" size={13} color={Colors.rooms.mutedText} />
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.actionBtn}
                 onPress={handleDelete}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               >
-                <Feather name="trash-2" size={14} color="#EF4444" />
+                <Feather name="trash-2" size={13} color="#EF4444" />
               </TouchableOpacity>
             </View>
           )}
@@ -153,24 +221,35 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
           </Text>
         ) : null}
 
-        {/* Linked Place Badge */}
+        {/* Linked Place Badge with Direct Map Navigation */}
         {linkedPlace && linkedPlace.name ? (
-          <TouchableOpacity
-            style={styles.placePill}
-            onPress={() => onPlacePress?.(linkedPlace)}
-            activeOpacity={0.75}
-          >
-            <Text style={styles.placeEmoji}>{getCategoryIcon(linkedPlace.category)}</Text>
-            <Text style={styles.placeName} numberOfLines={1}>
-              {linkedPlace.name}
-            </Text>
-            {linkedPlace.address ? (
-              <Text style={styles.placeAddress} numberOfLines={1}>
-                · {linkedPlace.address}
+          <View style={styles.placePillContainer}>
+            <TouchableOpacity
+              style={styles.placePill}
+              onPress={() => onPlacePress?.(linkedPlace)}
+              activeOpacity={0.75}
+            >
+              <Ionicons name="location" size={13} color={catStyle.color} />
+              <Text style={styles.placeName} numberOfLines={1}>
+                {linkedPlace.name}
               </Text>
-            ) : null}
-            <Feather name="chevron-right" size={12} color={Colors.rooms.mutedText} />
-          </TouchableOpacity>
+              {linkedPlace.address ? (
+                <Text style={styles.placeAddress} numberOfLines={1}>
+                  · {linkedPlace.address}
+                </Text>
+              ) : null}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.mapsShortcutBtn}
+              onPress={() => handleOpenMaps(linkedPlace)}
+              activeOpacity={0.7}
+              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+            >
+              <Ionicons name="navigate-outline" size={13} color={Colors.rooms.forestGreen} />
+              <Text style={styles.mapsShortcutText}>Map</Text>
+            </TouchableOpacity>
+          </View>
         ) : null}
       </View>
     </View>
@@ -189,32 +268,48 @@ const styles = StyleSheet.create({
     shadowColor: '#3F2C18',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
-    shadowRadius: 6,
+    shadowRadius: 5,
     elevation: 2,
+    overflow: 'hidden',
+    position: 'relative',
   },
   completedCard: {
-    backgroundColor: '#F7F2EB',
-    borderColor: '#E2D5C3',
-    opacity: 0.85,
+    backgroundColor: '#F5EFE6',
+    borderColor: '#DFD2C2',
+    opacity: 0.82,
+  },
+  categoryStripe: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 3.5,
   },
   leftColumn: {
     alignItems: 'center',
-    paddingTop: 3,
+    paddingTop: 2,
+    paddingLeft: 4,
     marginRight: 10,
   },
   checkbox: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: '#C8DEC8',
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 1.8,
+    borderColor: '#C4D6C4',
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
   },
   checkedCheckbox: {
-    backgroundColor: Colors.rooms.activeGreen,
-    borderColor: Colors.rooms.activeGreen,
+    backgroundColor: Colors.rooms.forestGreen,
+    borderColor: Colors.rooms.forestGreen,
+  },
+  uncheckedInner: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: 'transparent',
   },
   contentColumn: {
     flex: 1,
@@ -222,6 +317,8 @@ const styles = StyleSheet.create({
   topMetaRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
     marginBottom: 6,
   },
   timePill: {
@@ -231,82 +328,119 @@ const styles = StyleSheet.create({
     backgroundColor: '#EAE1D3',
     paddingHorizontal: 8,
     paddingVertical: 3,
-    borderRadius: 10,
+    borderRadius: 8,
+  },
+  completedTimePill: {
+    backgroundColor: '#E2D6C5',
   },
   timeText: {
-    fontSize: 12,
+    fontSize: 11.5,
     fontWeight: '700',
     color: Colors.rooms.forestGreen,
   },
   completedTimeText: {
     color: Colors.rooms.mutedText,
+    fontWeight: '500',
+  },
+  categoryBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 7,
+    paddingVertical: 2.5,
+    borderRadius: 6,
+  },
+  categoryBadgeText: {
+    fontSize: 10.5,
+    fontWeight: '700',
   },
   reminderPill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 3,
-    backgroundColor: '#FDEBDD',
+    backgroundColor: '#FDF0E5',
     paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 8,
-    marginLeft: 6,
+    paddingVertical: 2.5,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#F8DFC9',
   },
   reminderText: {
-    fontSize: 11,
-    fontWeight: '600',
+    fontSize: 10,
+    fontWeight: '700',
     color: '#C96A25',
   },
   cardActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 8,
     marginLeft: 'auto',
   },
   actionBtn: {
-    padding: 2,
+    padding: 3,
   },
   title: {
-    fontSize: 16,
-    fontWeight: '800',
+    fontSize: 15,
+    fontWeight: '700',
     color: Colors.rooms.darkText,
+    lineHeight: 20,
     marginBottom: 4,
-    lineHeight: 21,
   },
   completedTitle: {
     textDecorationLine: 'line-through',
     color: Colors.rooms.mutedText,
   },
   description: {
-    fontSize: 13,
-    color: Colors.rooms.mutedText,
-    lineHeight: 18,
+    fontSize: 12.5,
+    color: '#60584F',
+    lineHeight: 17,
     marginBottom: 8,
   },
   completedDescription: {
-    color: '#A89E91',
+    color: '#8A8277',
+  },
+  placePillContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F4ECE0',
+    borderRadius: 8,
+    paddingVertical: 5,
+    paddingHorizontal: 8,
+    borderWidth: 1,
+    borderColor: '#E8DCCF',
+    marginTop: 2,
+    gap: 6,
   },
   placePill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    backgroundColor: '#F0EDE5',
-    paddingVertical: 5,
-    paddingHorizontal: 9,
-    borderRadius: 8,
-    alignSelf: 'flex-start',
-    marginTop: 2,
-  },
-  placeEmoji: {
-    fontSize: 13,
+    gap: 4,
+    flex: 1,
   },
   placeName: {
     fontSize: 12,
     fontWeight: '700',
-    color: Colors.rooms.forestGreen,
+    color: Colors.rooms.darkText,
+    maxWidth: 140,
   },
   placeAddress: {
     fontSize: 11,
     color: Colors.rooms.mutedText,
-    maxWidth: 140,
+    flex: 1,
+  },
+  mapsShortcutBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: '#E6D9C8',
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  mapsShortcutText: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: Colors.rooms.forestGreen,
   },
 });

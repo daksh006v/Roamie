@@ -12,7 +12,7 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
-import { Feather } from '@expo/vector-icons';
+import { Feather, Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Colors } from '../../../constants/theme';
 import api from '../../../services/api';
 import { ItineraryItem, SavedPlace } from './itineraryTypes';
@@ -229,8 +229,10 @@ export const AddActivityModal: React.FC<AddActivityModalProps> = ({
                 <TouchableOpacity
                   onPress={onOpenAddPlace}
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  style={styles.pinShortcutLink}
                 >
-                  <Text style={styles.linkActionText}>+ Pin New Place</Text>
+                  <MaterialCommunityIcons name="google-maps" size={13} color="#C96A25" />
+                  <Text style={styles.linkActionText}>+ Pin on Google Maps</Text>
                 </TouchableOpacity>
               </View>
 
@@ -269,7 +271,11 @@ export const AddActivityModal: React.FC<AddActivityModalProps> = ({
                       onPress={() => setSelectedPlaceId(place._id)}
                       activeOpacity={0.75}
                     >
-                      <Text style={styles.placeChipIcon}>📍</Text>
+                      <Ionicons
+                        name="location"
+                        size={13}
+                        color={isSelected ? Colors.rooms.forestGreen : '#C96A25'}
+                      />
                       <Text
                         style={[
                           styles.placeChipText,
@@ -438,6 +444,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 6,
+  },
+  pinShortcutLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   linkActionText: {
     fontSize: 12,

@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { Feather } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Colors } from '../../../constants/theme';
 
 interface EmptyItineraryStateProps {
@@ -16,12 +16,20 @@ export const EmptyItineraryState: React.FC<EmptyItineraryStateProps> = ({
 }) => {
   return (
     <View style={styles.container}>
-      <View style={styles.iconCircle}>
-        <Feather name="calendar" size={38} color={Colors.rooms.forestGreen} />
+      <View style={styles.artworkContainer}>
+        <View style={styles.outerRing}>
+          <View style={styles.iconCircle}>
+            <Ionicons name="compass" size={42} color={Colors.rooms.forestGreen} />
+          </View>
+        </View>
+        <View style={styles.sparkleBadge}>
+          <Ionicons name="sparkles" size={14} color="#C96A25" />
+        </View>
       </View>
-      <Text style={styles.title}>No schedule planned yet</Text>
+
+      <Text style={styles.title}>Your Shared Travel Journal</Text>
       <Text style={styles.subtitle}>
-        Map out daily adventures, dinners, and meetups. Set reminders so your group stays in sync without asking "what are we doing next?".
+        Every great trip starts with a loose plan. Schedule activities, sunset dinners, and pinned Google Maps spots so everyone stays in sync.
       </Text>
 
       {canAdd && (
@@ -31,7 +39,7 @@ export const EmptyItineraryState: React.FC<EmptyItineraryStateProps> = ({
             onPress={onAddPress}
             activeOpacity={0.85}
           >
-            <Feather name="plus" size={17} color="#FFFFFF" />
+            <Ionicons name="add-circle" size={18} color="#FFFFFF" />
             <Text style={styles.ctaButtonText}>Add Activity</Text>
           </TouchableOpacity>
 
@@ -41,12 +49,29 @@ export const EmptyItineraryState: React.FC<EmptyItineraryStateProps> = ({
               onPress={onPinPlace}
               activeOpacity={0.8}
             >
-              <Feather name="map-pin" size={16} color={Colors.rooms.forestGreen} />
-              <Text style={styles.pinPlaceBtnText}>Pin Place</Text>
+              <MaterialCommunityIcons name="google-maps" size={18} color="#C96A25" />
+              <Text style={styles.pinPlaceBtnText}>Pin Any Spot</Text>
             </TouchableOpacity>
           )}
         </View>
       )}
+
+      {/* 3 Quick Ideas Banner */}
+      <View style={styles.ideasCard}>
+        <Text style={styles.ideasTitle}>Quick Inspiration:</Text>
+        <View style={styles.ideaItem}>
+          <Text style={styles.ideaEmoji}>🏖️</Text>
+          <Text style={styles.ideaText}>Pin the group's accommodation or villa address</Text>
+        </View>
+        <View style={styles.ideaItem}>
+          <Text style={styles.ideaEmoji}>🍽️</Text>
+          <Text style={styles.ideaText}>Search and save your favorite dinner spots</Text>
+        </View>
+        <View style={styles.ideaItem}>
+          <Text style={styles.ideaEmoji}>🎯</Text>
+          <Text style={styles.ideaText}>Schedule activities with automatic push reminders</Text>
+        </View>
+      </View>
     </View>
   );
 };
@@ -55,60 +80,92 @@ const styles = StyleSheet.create({
   container: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 36,
-    paddingVertical: 70,
+    paddingHorizontal: 24,
+    paddingVertical: 36,
   },
-  iconCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#E8F0E8',
-    borderWidth: 2,
-    borderColor: '#C8DEC8',
+  artworkContainer: {
+    position: 'relative',
+    marginBottom: 18,
+  },
+  outerRing: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    borderWidth: 1.5,
+    borderColor: '#DFD2C2',
+    borderStyle: 'dashed',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 20,
+  },
+  iconCircle: {
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    backgroundColor: '#EAE1D3',
+    alignItems: 'center',
+    justifyContent: 'center',
     shadowColor: Colors.rooms.forestGreen,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
+    shadowOpacity: 0.12,
     shadowRadius: 8,
     elevation: 3,
   },
+  sparkleBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#FFFDF9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: '#F8DFC9',
+    shadowColor: '#C96A25',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
   title: {
-    fontSize: 20,
+    fontSize: 21,
     fontWeight: '800',
     color: Colors.rooms.forestGreen,
     marginBottom: 8,
     textAlign: 'center',
+    letterSpacing: -0.3,
   },
   subtitle: {
-    fontSize: 14,
+    fontSize: 13.5,
     color: Colors.rooms.mutedText,
     textAlign: 'center',
-    lineHeight: 21,
+    lineHeight: 20,
     marginBottom: 24,
+    paddingHorizontal: 8,
   },
   ctaRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+    marginBottom: 28,
   },
   ctaButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    backgroundColor: Colors.rooms.burntOrange,
-    paddingVertical: 13,
-    paddingHorizontal: 20,
-    borderRadius: 24,
-    shadowColor: Colors.rooms.burntOrange,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
+    gap: 6,
+    backgroundColor: Colors.rooms.forestGreen,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    borderRadius: 14,
+    shadowColor: Colors.rooms.forestGreen,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
     shadowRadius: 6,
-    elevation: 4,
+    elevation: 3,
   },
   ctaButtonText: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '700',
     color: '#FFFFFF',
   },
@@ -116,16 +173,57 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: '#EBE2D5',
+    backgroundColor: '#FFFDF9',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: '#DFD2C2',
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: '#E2D5C3',
+    shadowColor: '#3F2C18',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 1,
   },
   pinPlaceBtnText: {
     fontSize: 14,
     fontWeight: '700',
-    color: Colors.rooms.forestGreen,
+    color: '#C96A25',
+  },
+  ideasCard: {
+    width: '100%',
+    backgroundColor: '#FFFDF9',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E8D9C8',
+    shadowColor: '#3F2C18',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 1,
+  },
+  ideasTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: Colors.rooms.darkText,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 10,
+  },
+  ideaItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 8,
+  },
+  ideaEmoji: {
+    fontSize: 16,
+  },
+  ideaText: {
+    fontSize: 12.5,
+    color: '#524B43',
+    flex: 1,
+    lineHeight: 17,
   },
 });

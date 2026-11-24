@@ -10,7 +10,8 @@ import {
   Vibration,
   Alert,
 } from 'react-native';
-import { Feather } from '@expo/vector-icons';
+import { Feather, Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Colors } from '../../../constants/theme';
 import {
   ItineraryItem,
@@ -27,6 +28,8 @@ import { AddPlaceModal } from './AddPlaceModal';
 import api from '../../../services/api';
 import { connectSocket } from '../../../services/socket';
 
+type StatusFilter = 'all' | 'upcoming' | 'completed';
+
 export const ItineraryTab: React.FC<ItineraryTabProps> = ({ data, onRefresh }) => {
   const { room, membership, currentUserId } = data;
   const roomId = room._id;
@@ -36,6 +39,9 @@ export const ItineraryTab: React.FC<ItineraryTabProps> = ({ data, onRefresh }) =
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Status Filter ('all' | 'upcoming' | 'completed')
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
 
   // Modals
   const [isAddActivityVisible, setIsAddActivityVisible] = useState(false);
@@ -50,7 +56,6 @@ export const ItineraryTab: React.FC<ItineraryTabProps> = ({ data, onRefresh }) =
   const isItineraryLocked = Boolean(room.isItineraryLocked);
 
   // Can user add or edit activities?
-  // Only owner can edit if itinerary is locked; otherwise all members can collaborate
   const canEdit = !isItineraryLocked || isOwner;
 
   /** Fetch schedule from GET /api/rooms/:roomId/itinerary */
@@ -293,15 +298,44 @@ export const ItineraryTab: React.FC<ItineraryTabProps> = ({ data, onRefresh }) =
     setPlaces((prev) => [newPlace, ...prev]);
   };
 
-  const totalActivities = useMemo(() => {
-    return days.reduce((sum, d) => sum + d.activities.length, 0);
+  // Activity stats calculation
+  const { totalActivities, completedCount, progressPercentage } = useMemo(() => {
+    let total = 0;
+    let completed = 0;
+    days.forEach((d) => {
+      d.activities.forEach((a) => {
+        total++;
+        if (a.isCompleted) completed++;
+      });
+    });
+    const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
+    return {
+      totalActivities: total,
+      completedCount: completed,
+      progressPercentage: pct,
+    };
   }, [days]);
+
+  // Filtered days based on status filter ('all' | 'upcoming' | 'completed')
+  const filteredDays = useMemo(() => {
+    if (statusFilter === 'all') return days;
+
+    return days
+      .map((group) => ({
+        ...group,
+        activities: group.activities.filter((a) =>
+          statusFilter === 'completed' ? a.isCompleted : !a.isCompleted
+        ),
+      }))
+      .filter((group) => group.activities.length > 0);
+  }, [days, statusFilter]);
 
   return (
     <View style={styles.container}>
       {/* Top Header */}
       <ItineraryHeader
         roomName={room.name}
+        destination={room.destination}
         coverImage={room.coverImage}
         totalActivities={totalActivities}
         totalDays={days.length}
@@ -314,7 +348,7 @@ export const ItineraryTab: React.FC<ItineraryTabProps> = ({ data, onRefresh }) =
       {/* Locked Mode Banner */}
       {isItineraryLocked && !isOwner && (
         <View style={styles.lockedBanner}>
-          <Feather name="lock" size={14} color="#C96A25" />
+          <Feather name="lock" size={13} color="#C96A25" />
           <Text style={styles.lockedBannerText}>
             Itinerary is locked by the trip Owner. Activities are view-only.
           </Text>
@@ -365,15 +399,133 @@ export const ItineraryTab: React.FC<ItineraryTabProps> = ({ data, onRefresh }) =
               onPinPlace={() => setIsAddPlaceVisible(true)}
             />
           ) : (
-            <DayScheduleList
-              days={days}
-              canEdit={canEdit}
-              onToggleComplete={handleToggleComplete}
-              onEditItem={handleEditItem}
-              onDeleteItem={handleDeleteItem}
-              onPlacePress={(place) => setIsPlacesVisible(true)}
-              onAddActivityForDate={handleAddActivityForDate}
-            />
+            <>
+              {/* Trip Progress Hero Card */}
+              <LinearGradient
+                colors={['#243C32', '#1B2E26']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.heroProgressCard}
+              >
+                <View style={styles.heroTopRow}>
+                  <View style={styles.heroTitleCol}>
+                    <Text style={styles.heroTagline}>TRIP TIMELINE</Text>
+                    <Text style={styles.heroTitle}>
+                      {room.destination || room.name}
+                    </Text>
+                  </View>
+
+                  <View style={styles.heroStatBadge}>
+                    <Text style={styles.heroStatNumber}>{progressPercentage}%</Text>
+                    <Text style={styles.heroStatLabel}>Done</Text>
+                  </View>
+                </View>
+
+                {/* Progress Track */}
+                <View style={styles.progressTrackContainer}>
+                  <View
+                    style={[
+                      styles.progressBarFill,
+                      { width: `${Math.min(100, Math.max(0, progressPercentage))}%` },
+                    ]}
+                  />
+                </View>
+
+                {/* Stats Row & Quick Shortcuts */}
+                <View style={styles.heroFooterRow}>
+                  <Text style={styles.heroCountText}>
+                    {completedCount} of {totalActivities} completed · {days.length} days
+                  </Text>
+
+                  <TouchableOpacity
+                    style={styles.heroPinBtn}
+                    onPress={() => setIsAddPlaceVisible(true)}
+                    activeOpacity={0.75}
+                  >
+                    <MaterialCommunityIcons name="google-maps" size={13} color="#FFFDF9" />
+                    <Text style={styles.heroPinBtnText}>+ Pin Spot</Text>
+                  </TouchableOpacity>
+                </View>
+              </LinearGradient>
+
+              {/* Status Filter Chips: All / Upcoming / Completed */}
+              <View style={styles.statusFilterRow}>
+                <TouchableOpacity
+                  style={[
+                    styles.statusChip,
+                    statusFilter === 'all' && styles.statusChipActive,
+                  ]}
+                  onPress={() => setStatusFilter('all')}
+                  activeOpacity={0.75}
+                >
+                  <Text
+                    style={[
+                      styles.statusChipText,
+                      statusFilter === 'all' && styles.statusChipTextActive,
+                    ]}
+                  >
+                    All ({totalActivities})
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.statusChip,
+                    statusFilter === 'upcoming' && styles.statusChipActive,
+                  ]}
+                  onPress={() => setStatusFilter('upcoming')}
+                  activeOpacity={0.75}
+                >
+                  <Ionicons
+                    name="hourglass-outline"
+                    size={12}
+                    color={statusFilter === 'upcoming' ? '#FFFDF9' : Colors.rooms.mutedText}
+                  />
+                  <Text
+                    style={[
+                      styles.statusChipText,
+                      statusFilter === 'upcoming' && styles.statusChipTextActive,
+                    ]}
+                  >
+                    Upcoming ({totalActivities - completedCount})
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.statusChip,
+                    statusFilter === 'completed' && styles.statusChipActive,
+                  ]}
+                  onPress={() => setStatusFilter('completed')}
+                  activeOpacity={0.75}
+                >
+                  <Ionicons
+                    name="checkmark-circle-outline"
+                    size={12}
+                    color={statusFilter === 'completed' ? '#FFFDF9' : Colors.rooms.mutedText}
+                  />
+                  <Text
+                    style={[
+                      styles.statusChipText,
+                      statusFilter === 'completed' && styles.statusChipTextActive,
+                    ]}
+                  >
+                    Done ({completedCount})
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Day Schedule List */}
+              <DayScheduleList
+                days={filteredDays}
+                canEdit={canEdit}
+                onToggleComplete={handleToggleComplete}
+                onEditItem={handleEditItem}
+                onDeleteItem={handleDeleteItem}
+                onPlacePress={(place) => setIsPlacesVisible(true)}
+                onAddActivityForDate={handleAddActivityForDate}
+              />
+            </>
           )}
         </ScrollView>
       )}
@@ -389,7 +541,7 @@ export const ItineraryTab: React.FC<ItineraryTabProps> = ({ data, onRefresh }) =
           }}
           activeOpacity={0.85}
         >
-          <Feather name="plus" size={20} color="#FFFDF9" />
+          <Ionicons name="add" size={20} color="#FFFDF9" />
           <Text style={styles.fabText}>Add Activity</Text>
         </TouchableOpacity>
       )}
@@ -443,6 +595,7 @@ export const ItineraryTab: React.FC<ItineraryTabProps> = ({ data, onRefresh }) =
       <AddPlaceModal
         visible={isAddPlaceVisible}
         roomId={roomId}
+        roomDestination={room.destination}
         onClose={() => setIsAddPlaceVisible(false)}
         onPlaceAdded={handlePlaceAdded}
       />
@@ -522,13 +675,130 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: 90,
   },
+  heroProgressCard: {
+    borderRadius: 18,
+    padding: 16,
+    marginBottom: 16,
+    shadowColor: '#243C32',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  heroTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  heroTitleCol: {
+    flex: 1,
+    marginRight: 10,
+  },
+  heroTagline: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    color: '#A5C4B3',
+    letterSpacing: 1,
+    marginBottom: 2,
+  },
+  heroTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#FFFDF9',
+    letterSpacing: -0.3,
+  },
+  heroStatBadge: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 253, 249, 0.12)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 253, 249, 0.18)',
+  },
+  heroStatNumber: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#E8D2A8',
+  },
+  heroStatLabel: {
+    fontSize: 9.5,
+    color: '#C5D8CD',
+    fontWeight: '700',
+    textTransform: 'uppercase',
+  },
+  progressTrackContainer: {
+    height: 7,
+    backgroundColor: 'rgba(255, 253, 249, 0.15)',
+    borderRadius: 4,
+    overflow: 'hidden',
+    marginBottom: 12,
+  },
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: '#C96A25',
+    borderRadius: 4,
+  },
+  heroFooterRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  heroCountText: {
+    fontSize: 12,
+    color: '#C5D8CD',
+    fontWeight: '500',
+  },
+  heroPinBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(201, 106, 37, 0.85)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+  },
+  heroPinBtnText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#FFFDF9',
+  },
+  statusFilterRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 16,
+  },
+  statusChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#FFFDF9',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#DFD2C2',
+  },
+  statusChipActive: {
+    backgroundColor: Colors.rooms.forestGreen,
+    borderColor: Colors.rooms.forestGreen,
+  },
+  statusChipText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.rooms.mutedText,
+  },
+  statusChipTextActive: {
+    color: '#FFFDF9',
+  },
   fab: {
     position: 'absolute',
     right: 20,
     bottom: 24,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
     backgroundColor: '#C96A25',
     paddingHorizontal: 20,
     paddingVertical: 13,
@@ -541,8 +811,8 @@ const styles = StyleSheet.create({
   },
   fabText: {
     color: '#FFFDF9',
-    fontSize: 15,
-    fontWeight: '700',
+    fontSize: 14.5,
+    fontWeight: '800',
     letterSpacing: 0.2,
   },
 });

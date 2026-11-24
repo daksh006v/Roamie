@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -6,12 +6,16 @@ import {
   Modal,
   TouchableOpacity,
   FlatList,
+  TextInput,
   Linking,
   Platform,
   Alert,
-  ActivityIndicator,
 } from 'react-native';
-import { Feather } from '@expo/vector-icons';
+import {
+  Feather,
+  Ionicons,
+  MaterialCommunityIcons,
+} from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { Colors } from '../../../constants/theme';
 import { SavedPlace } from './itineraryTypes';
@@ -29,40 +33,39 @@ interface PlacesListModalProps {
 
 const CATEGORY_FILTERS = [
   { key: 'all', label: 'All' },
-  { key: 'food', label: '🍽️ Food' },
+  { key: 'food', label: '🍽️ Dining' },
   { key: 'beach', label: '🏖️ Beach' },
   { key: 'stay', label: '🏨 Stay' },
   { key: 'sights', label: '🏛️ Sights' },
-  { key: 'nightlife', label: '🍸 Drinks' },
+  { key: 'nightlife', label: '🍸 Nightlife' },
   { key: 'activity', label: '🎯 Adventure' },
   { key: 'other', label: '📍 Other' },
 ];
 
-const getCategoryEmoji = (category?: string): string => {
+const getCategoryStyle = (category?: string) => {
   switch (category?.toLowerCase()) {
     case 'food':
     case 'restaurant':
-      return '🍽️';
+      return { icon: 'food-fork-drink', color: '#C96A25', bg: '#FDF3E7', label: 'Food & Dining' };
     case 'beach':
-      return '🏖️';
+      return { icon: 'beach', color: '#0284C7', bg: '#E0F2FE', label: 'Beach & Sea' };
     case 'stay':
     case 'hotel':
-      return '🏨';
+      return { icon: 'bed-king', color: '#243C32', bg: '#EDF5EF', label: 'Hotel & Stay' };
     case 'nightlife':
     case 'drinks':
-      return '🍸';
+      return { icon: 'glass-cocktail', color: '#9333EA', bg: '#F3E8FF', label: 'Nightlife' };
     case 'activity':
-    case 'adventure':
-      return '🎯';
+    case 'activities':
+      return { icon: 'hiking', color: '#059669', bg: '#D1FAE5', label: 'Adventure' };
     case 'sights':
     case 'sightseeing':
-      return '🏛️';
+      return { icon: 'camera-iris', color: '#B45309', bg: '#FEF3C7', label: 'Sightseeing' };
     default:
-      return '📍';
+      return { icon: 'map-marker-radius', color: '#64748B', bg: '#F1F5F9', label: 'Saved Spot' };
   }
 };
 
-// Haversine formula to calculate distance in km between two lat/lng coordinates
 const calculateHaversineKm = (
   lat1: number,
   lon1: number,
@@ -93,21 +96,21 @@ export const PlacesListModal: React.FC<PlacesListModalProps> = ({
   onSelectPlaceForActivity,
 }) => {
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
   const [userLocation, setUserLocation] = useState<{
     latitude: number;
     longitude: number;
   } | null>(null);
-  const [locating, setLocating] = useState(false);
 
   useEffect(() => {
     if (visible) {
       checkUserLocation();
+      setSearchQuery('');
     }
   }, [visible]);
 
   const checkUserLocation = async () => {
     try {
-      setLocating(true);
       const { status } = await Location.getForegroundPermissionsAsync();
       if (status === 'granted') {
         const position = await Location.getCurrentPositionAsync({
@@ -118,11 +121,7 @@ export const PlacesListModal: React.FC<PlacesListModalProps> = ({
           longitude: position.coords.longitude,
         });
       }
-    } catch (err) {
-      // Non-blocking location enhancement
-    } finally {
-      setLocating(false);
-    }
+    } catch (err) {}
   };
 
   const handleOpenMaps = (place: SavedPlace) => {
@@ -165,20 +164,32 @@ export const PlacesListModal: React.FC<PlacesListModalProps> = ({
     );
   };
 
-  const filteredPlaces = places
-    .filter((p) => selectedCategory === 'all' || p.category === selectedCategory)
-    .map((p) => {
-      let distanceKm: number | null = null;
-      if (userLocation && p.latitude && p.longitude) {
-        distanceKm = calculateHaversineKm(
-          userLocation.latitude,
-          userLocation.longitude,
-          p.latitude,
-          p.longitude
-        );
-      }
-      return { ...p, distanceKm };
-    });
+  const filteredPlaces = useMemo(() => {
+    return places
+      .filter((p) => {
+        const matchesCategory =
+          selectedCategory === 'all' || p.category === selectedCategory;
+        const matchesQuery =
+          !searchQuery.trim() ||
+          p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          (p.address && p.address.toLowerCase().includes(searchQuery.toLowerCase())) ||
+          (p.description && p.description.toLowerCase().includes(searchQuery.toLowerCase()));
+
+        return matchesCategory && matchesQuery;
+      })
+      .map((p) => {
+        let distanceKm: number | null = null;
+        if (userLocation && p.latitude && p.longitude) {
+          distanceKm = calculateHaversineKm(
+            userLocation.latitude,
+            userLocation.longitude,
+            p.latitude,
+            p.longitude
+          );
+        }
+        return { ...p, distanceKm };
+      });
+  }, [places, selectedCategory, searchQuery, userLocation]);
 
   const renderPlaceItem = ({ item }: { item: SavedPlace & { distanceKm: number | null } }) => {
     const canDelete =
@@ -187,11 +198,17 @@ export const PlacesListModal: React.FC<PlacesListModalProps> = ({
         (item.addedBy._id === currentUserId ||
           (item.addedBy as any) === currentUserId));
 
+    const catStyle = getCategoryStyle(item.category);
+
     return (
       <View style={styles.placeCard}>
         <View style={styles.placeHeaderRow}>
-          <View style={styles.placeEmojiContainer}>
-            <Text style={styles.placeEmojiText}>{getCategoryEmoji(item.category)}</Text>
+          <View style={[styles.placeIconBox, { backgroundColor: catStyle.bg }]}>
+            <MaterialCommunityIcons
+              name={catStyle.icon as any}
+              size={20}
+              color={catStyle.color}
+            />
           </View>
 
           <View style={styles.placeInfoCol}>
@@ -205,7 +222,7 @@ export const PlacesListModal: React.FC<PlacesListModalProps> = ({
             ) : null}
             {item.distanceKm !== null && (
               <View style={styles.distanceBadge}>
-                <Feather name="navigation" size={10} color={Colors.rooms.forestGreen} />
+                <Ionicons name="navigate-outline" size={10} color={Colors.rooms.forestGreen} />
                 <Text style={styles.distanceText}>
                   {item.distanceKm < 1
                     ? `${Math.round(item.distanceKm * 1000)} m away`
@@ -223,7 +240,7 @@ export const PlacesListModal: React.FC<PlacesListModalProps> = ({
               activeOpacity={0.75}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
-              <Feather name="map" size={16} color={Colors.rooms.forestGreen} />
+              <Ionicons name="map-outline" size={16} color={Colors.rooms.forestGreen} />
             </TouchableOpacity>
 
             {canDelete && (
@@ -233,7 +250,7 @@ export const PlacesListModal: React.FC<PlacesListModalProps> = ({
                 activeOpacity={0.7}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               >
-                <Feather name="trash-2" size={15} color="#EF4444" />
+                <Feather name="trash-2" size={14} color="#EF4444" />
               </TouchableOpacity>
             )}
           </View>
@@ -254,8 +271,8 @@ export const PlacesListModal: React.FC<PlacesListModalProps> = ({
             }}
             activeOpacity={0.75}
           >
-            <Feather name="calendar" size={12} color={Colors.rooms.forestGreen} />
-            <Text style={styles.selectPlaceBtnText}>Schedule into Itinerary</Text>
+            <Ionicons name="calendar-outline" size={13} color={Colors.rooms.forestGreen} />
+            <Text style={styles.selectPlaceBtnText}>Schedule into Daily Itinerary</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -273,11 +290,16 @@ export const PlacesListModal: React.FC<PlacesListModalProps> = ({
         <View style={styles.sheetContainer}>
           {/* Header */}
           <View style={styles.sheetHeader}>
-            <View>
-              <Text style={styles.sheetTitle}>Saved Places</Text>
-              <Text style={styles.sheetSubtitle}>
-                {places.length} {places.length === 1 ? 'place' : 'places'} pinned for this trip
-              </Text>
+            <View style={styles.sheetHeaderLeft}>
+              <View style={styles.headerIconCircle}>
+                <MaterialCommunityIcons name="google-maps" size={20} color="#C96A25" />
+              </View>
+              <View>
+                <Text style={styles.sheetTitle}>Pinned Spots</Text>
+                <Text style={styles.sheetSubtitle}>
+                  {places.length} {places.length === 1 ? 'place' : 'places'} on Google Maps
+                </Text>
+              </View>
             </View>
 
             <View style={styles.headerRightRow}>
@@ -289,8 +311,8 @@ export const PlacesListModal: React.FC<PlacesListModalProps> = ({
                 }}
                 activeOpacity={0.8}
               >
-                <Feather name="plus" size={14} color="#FFFDF9" />
-                <Text style={styles.addPlaceBtnText}>New Place</Text>
+                <Ionicons name="add" size={16} color="#FFFDF9" />
+                <Text style={styles.addPlaceBtnText}>Pin Spot</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -301,6 +323,23 @@ export const PlacesListModal: React.FC<PlacesListModalProps> = ({
                 <Feather name="x" size={20} color={Colors.rooms.darkText} />
               </TouchableOpacity>
             </View>
+          </View>
+
+          {/* Search Filter Box */}
+          <View style={styles.searchBarContainer}>
+            <Ionicons name="search" size={15} color={Colors.rooms.mutedText} />
+            <TextInput
+              style={styles.searchBarInput}
+              placeholder="Search saved spots..."
+              placeholderTextColor={Colors.rooms.mutedText}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={() => setSearchQuery('')}>
+                <Feather name="x" size={14} color={Colors.rooms.mutedText} />
+              </TouchableOpacity>
+            )}
           </View>
 
           {/* Category Filter Chips */}
@@ -340,9 +379,13 @@ export const PlacesListModal: React.FC<PlacesListModalProps> = ({
           {filteredPlaces.length === 0 ? (
             <View style={styles.emptyContainer}>
               <Text style={styles.emptyEmoji}>🗺️</Text>
-              <Text style={styles.emptyTitle}>No places found</Text>
+              <Text style={styles.emptyTitle}>
+                {searchQuery ? 'No matching spots' : 'No places saved yet'}
+              </Text>
               <Text style={styles.emptySubtitle}>
-                Pin beaches, cafes, hotels, and sights so everyone knows where to meet.
+                {searchQuery
+                  ? 'Try searching with a different keyword or clear the search query.'
+                  : 'Search any cafe, beach, or landmark from Google Maps to save it for everyone.'}
               </Text>
               <TouchableOpacity
                 style={styles.emptyActionBtn}
@@ -352,8 +395,8 @@ export const PlacesListModal: React.FC<PlacesListModalProps> = ({
                 }}
                 activeOpacity={0.8}
               >
-                <Feather name="map-pin" size={16} color="#FFFDF9" />
-                <Text style={styles.emptyActionBtnText}>Pin First Place</Text>
+                <MaterialCommunityIcons name="google-maps" size={16} color="#FFFDF9" />
+                <Text style={styles.emptyActionBtnText}>Search & Pin on Map</Text>
               </TouchableOpacity>
             </View>
           ) : (
@@ -374,7 +417,7 @@ export const PlacesListModal: React.FC<PlacesListModalProps> = ({
 const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(36, 60, 50, 0.45)',
+    backgroundColor: 'rgba(36, 60, 50, 0.5)',
     justifyContent: 'flex-end',
   },
   sheetContainer: {
@@ -384,7 +427,7 @@ const styles = StyleSheet.create({
     paddingTop: 18,
     paddingHorizontal: 20,
     paddingBottom: Platform.OS === 'ios' ? 34 : 20,
-    height: '82%',
+    height: '84%',
     borderWidth: 1,
     borderColor: '#E8D9C8',
   },
@@ -392,30 +435,46 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 14,
-    paddingBottom: 12,
+    marginBottom: 12,
+    paddingBottom: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#EADBCB',
   },
+  sheetHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+  },
+  headerIconCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: '#FDF0E5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#F8DFC9',
+  },
   sheetTitle: {
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: '800',
     color: Colors.rooms.forestGreen,
   },
   sheetSubtitle: {
     fontSize: 12,
     color: Colors.rooms.mutedText,
-    marginTop: 2,
+    marginTop: 1,
   },
   headerRightRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
   },
   addPlaceBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    gap: 4,
     backgroundColor: '#C96A25',
     paddingHorizontal: 12,
     paddingVertical: 7,
@@ -438,6 +497,24 @@ const styles = StyleSheet.create({
     backgroundColor: '#EBE2D5',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  searchBarContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#FFFDF9',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: '#E2D5C3',
+    marginBottom: 10,
+  },
+  searchBarInput: {
+    flex: 1,
+    fontSize: 13,
+    color: Colors.rooms.darkText,
+    padding: 0,
   },
   categoryFilterContainer: {
     marginBottom: 12,
@@ -487,19 +564,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
-  placeEmojiContainer: {
+  placeIconBox: {
     width: 38,
     height: 38,
     borderRadius: 10,
-    backgroundColor: '#F5ECE1',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 10,
-    borderWidth: 1,
-    borderColor: '#E6D7C5',
-  },
-  placeEmojiText: {
-    fontSize: 18,
   },
   placeInfoCol: {
     flex: 1,
@@ -570,7 +641,7 @@ const styles = StyleSheet.create({
   },
   selectPlaceBtnText: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
     color: Colors.rooms.forestGreen,
   },
   emptyContainer: {
