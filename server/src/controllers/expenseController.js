@@ -4,6 +4,7 @@ const RoomMember = require('../models/RoomMember');
 const User = require('../models/User');
 const Notification = require('../models/Notification');
 const Settlement = require('../models/Settlement');
+const Message = require('../models/Message');
 const { calculateRoomBalances } = require('../services/expenseSplitService');
 const { sendPushNotifications } = require('../services/pushNotificationService');
 const { sendSuccess, sendError } = require('../utils/responseHandler');
@@ -171,6 +172,26 @@ const addExpense = async (req, res) => {
       sendPushNotifications(pushMessages).catch((err) =>
         console.error('Expense push notification error:', err)
       );
+    }
+
+    // Post system activity message into Room Chat
+    const systemActionText = `${req.user.name} added an expense "${expense.title}" (₹${Number(expense.amount).toLocaleString('en-IN')})`;
+    await Message.create({
+      roomId,
+      senderId: req.user._id,
+      messageType: 'system',
+      systemAction: systemActionText,
+    });
+
+    if (req.io) {
+      req.io.to(`room:${roomId}`).emit('new_message', {
+        _id: new Date().getTime().toString(),
+        roomId,
+        senderId: { _id: req.user._id, name: req.user.name },
+        messageType: 'system',
+        systemAction: systemActionText,
+        createdAt: new Date().toISOString(),
+      });
     }
 
     return sendSuccess(
@@ -351,8 +372,12 @@ const settleSettlement = async (req, res) => {
       return sendError(res, 'A valid settlement is required', 400);
     }
 
-    if (fromUserId.toString() !== req.user._id.toString()) {
-      return sendError(res, 'Only the person who owes this debt can mark it as paid', 403);
+    const callerMember = req.roomMember || (await RoomMember.findOne({ roomId, userId: req.user._id }));
+    const isDebtor = fromUserId.toString() === req.user._id.toString();
+    const isOwnerOrAdmin = callerMember && (callerMember.role === 'owner' || callerMember.role === 'admin');
+
+    if (!isDebtor && !isOwnerOrAdmin) {
+      return sendError(res, 'Only the person who owes this debt or a trip admin can mark it as paid', 403);
     }
 
     const balances = await calculateRoomBalances(roomId, req.user._id);
@@ -376,10 +401,31 @@ const settleSettlement = async (req, res) => {
       settledBy: req.user._id,
     });
 
+    const debtorUser = await User.findById(fromUserId).select('name');
+    const creditorUser = await User.findById(toUserId).select('name');
+    const debtorName = debtorUser ? debtorUser.name : 'A traveler';
+    const creditorName = creditorUser ? creditorUser.name : 'a traveler';
+    const settleActionText = `✅ ${debtorName} settled ₹${remainingAmount.toLocaleString('en-IN')} with ${creditorName}`;
+
+    await Message.create({
+      roomId,
+      senderId: req.user._id,
+      messageType: 'system',
+      systemAction: settleActionText,
+    });
+
     if (req.io) {
       req.io.to(`room:${roomId}`).emit('expense_settlement_updated', {
         roomId,
         settlementId: settlement._id,
+      });
+      req.io.to(`room:${roomId}`).emit('new_message', {
+        _id: new Date().getTime().toString(),
+        roomId,
+        senderId: { _id: req.user._id, name: req.user.name },
+        messageType: 'system',
+        systemAction: settleActionText,
+        createdAt: new Date().toISOString(),
       });
     }
 

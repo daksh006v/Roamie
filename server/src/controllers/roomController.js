@@ -237,7 +237,7 @@ const getRoomById = async (req, res) => {
 // @access  Private (Owner or Admin with editRoom)
 const updateRoom = async (req, res) => {
   try {
-    const { name, destination, startDate, endDate, description, coverImage } = req.body;
+    const { name, destination, startDate, endDate, description, coverImage, isItineraryLocked } = req.body;
     const room = await Room.findById(req.params.id);
 
     if (!room) {
@@ -263,6 +263,12 @@ const updateRoom = async (req, res) => {
     if (endDate) room.endDate = new Date(endDate);
     if (description !== undefined) room.description = description.trim();
     if (coverImage !== undefined) room.coverImage = coverImage;
+    if (isItineraryLocked !== undefined) {
+      const adminCanLock = room.adminPermissions?.lockItinerary ?? true;
+      if (isOwner || (isAdmin && adminCanLock)) {
+        room.isItineraryLocked = Boolean(isItineraryLocked);
+      }
+    }
 
     await room.save();
 
