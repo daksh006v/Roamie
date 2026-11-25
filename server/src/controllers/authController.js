@@ -1,6 +1,18 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const { uploadAvatarToStorage } = require('../config/cloudinary');
 const { sendSuccess, sendError } = require('../utils/responseHandler');
+
+const serializeUser = (user) => ({
+  _id: user._id,
+  name: user.name,
+  email: user.email,
+  phone: user.phone || '',
+  avatar: user.avatar || '',
+  bio: user.bio || '',
+  homeCity: user.homeCity || '',
+  travelStyle: user.travelStyle || '',
+});
 
 const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET || 'roamie_super_secret_jwt_key_2026_dev', {
@@ -37,13 +49,7 @@ const register = async (req, res) => {
       res,
       'Registration successful',
       {
-        user: {
-          _id: user._id,
-          name: user.name,
-          email: user.email,
-          phone: user.phone,
-          avatar: user.avatar,
-        },
+        user: serializeUser(user),
         token,
       },
       201
@@ -73,13 +79,7 @@ const login = async (req, res) => {
     const token = generateToken(user._id);
 
     return sendSuccess(res, 'Login successful', {
-      user: {
-        _id: user._id,
-        name: user.name,
-        email: user.email,
-        phone: user.phone,
-        avatar: user.avatar,
-      },
+      user: serializeUser(user),
       token,
     });
   } catch (error) {
@@ -104,17 +104,62 @@ const getMe = async (req, res) => {
 // @access  Private
 const updateProfile = async (req, res) => {
   try {
-    const { name, phone, avatar, pushToken } = req.body;
+    const { name, phone, avatar, bio, homeCity, travelStyle, pushToken } = req.body;
     const user = await User.findById(req.user._id);
 
-    if (name) user.name = name;
-    if (phone !== undefined) user.phone = phone;
-    if (avatar !== undefined) user.avatar = avatar;
+    if (!user) {
+      return sendError(res, 'User not found', 404);
+    }
+
+    if (name !== undefined) {
+      const trimmedName = String(name).trim();
+      if (!trimmedName) {
+        return sendError(res, 'Display name cannot be empty', 400);
+      }
+      user.name = trimmedName;
+    }
+    if (phone !== undefined) user.phone = String(phone).trim();
+    if (avatar !== undefined) user.avatar = String(avatar).trim();
+    if (bio !== undefined) user.bio = String(bio).trim();
+    if (homeCity !== undefined) user.homeCity = String(homeCity).trim();
+    if (travelStyle !== undefined) user.travelStyle = String(travelStyle).trim();
     if (pushToken !== undefined) user.pushToken = pushToken;
 
     await user.save();
 
-    return sendSuccess(res, 'Profile updated successfully', { user });
+    return sendSuccess(res, 'Profile updated successfully', { user: serializeUser(user) });
+  } catch (error) {
+    return sendError(res, error.message, 500);
+  }
+};
+
+// @desc    Upload user profile avatar
+// @route   POST /api/auth/avatar
+// @access  Private
+const uploadAvatar = async (req, res) => {
+  try {
+    if (!req.file) {
+      return sendError(res, 'Please select an image to upload', 400);
+    }
+
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return sendError(res, 'User not found', 404);
+    }
+
+    const storageResult = await uploadAvatarToStorage(
+      req.file.buffer,
+      user._id,
+      req.file.originalname
+    );
+
+    user.avatar = storageResult.thumbnailUrl || storageResult.storageUrl;
+    await user.save();
+
+    return sendSuccess(res, 'Profile photo updated', {
+      user: serializeUser(user),
+      avatarUrl: user.avatar,
+    });
   } catch (error) {
     return sendError(res, error.message, 500);
   }
@@ -125,4 +170,5 @@ module.exports = {
   login,
   getMe,
   updateProfile,
+  uploadAvatar,
 };

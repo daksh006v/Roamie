@@ -35,6 +35,24 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
+    bio: {
+      type: String,
+      trim: true,
+      maxlength: 200,
+      default: '',
+    },
+    homeCity: {
+      type: String,
+      trim: true,
+      maxlength: 80,
+      default: '',
+    },
+    travelStyle: {
+      type: String,
+      trim: true,
+      maxlength: 60,
+      default: '',
+    },
     pushToken: {
       type: String,
       default: '',

@@ -19,40 +19,46 @@ const isCloudinaryConfigured = () => {
 };
 
 /**
- * Upload buffer to Cloudinary in room-specific folder or fallback to local disk room-specific folder
+ * Shared helper to upload an image buffer to Cloudinary with local disk fallback
  */
-const uploadToStorage = async (fileBuffer, roomId, originalFilename, mediaType = 'image') => {
-  const uniquePrefix = `img_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+const uploadBufferWithFallback = async ({
+  fileBuffer,
+  cloudinaryFolder,
+  localSubdirs,
+  relativePrefix,
+  publicIdPrefix,
+  originalFilename,
+  fullWidth = 1400,
+  thumbSize = 400,
+}) => {
+  const uniquePrefix = `${publicIdPrefix}_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
 
   const saveToLocal = () => {
-    const roomUploadDir = path.join(__dirname, '..', '..', 'uploads', 'rooms', roomId.toString());
-    if (!fs.existsSync(roomUploadDir)) {
-      fs.mkdirSync(roomUploadDir, { recursive: true });
+    const uploadDir = path.join(__dirname, '..', '..', 'uploads', ...localSubdirs);
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
     }
 
     const filename = `${uniquePrefix}_${originalFilename ? originalFilename.replace(/[^a-zA-Z0-9.-]/g, '_') : 'photo.jpg'}`;
-    const filePath = path.join(roomUploadDir, filename);
+    const filePath = path.join(uploadDir, filename);
     fs.writeFileSync(filePath, fileBuffer);
 
-    const relativeUrl = `/uploads/rooms/${roomId}/${filename}`;
+    const relativeUrl = `${relativePrefix}/${filename}`;
     return {
       storageUrl: relativeUrl,
       thumbnailUrl: relativeUrl,
-      publicId: `local_${roomId}_${uniquePrefix}`,
+      publicId: `local_${uniquePrefix}`,
       width: 800,
       height: 600,
     };
   };
 
   if (isCloudinaryConfigured()) {
-    // Dedicated room folder in Cloudinary: roamie/rooms/<roomId>/
-    const folder = `roamie/rooms/${roomId}/${mediaType === 'receipt' ? 'receipts' : 'gallery'}`;
-
     try {
       const uploadPromise = new Promise((resolve, reject) => {
         const uploadStream = cloudinary.uploader.upload_stream(
           {
-            folder,
+            folder: cloudinaryFolder,
             public_id: uniquePrefix,
             resource_type: 'image',
             timeout: 8000,
@@ -68,13 +74,13 @@ const uploadToStorage = async (fileBuffer, roomId, originalFilename, mediaType =
                 secure: true,
                 quality: 'auto:good',
                 fetch_format: 'auto',
-                width: 1400,
+                width: fullWidth,
                 crop: 'limit',
               }) || result.secure_url,
               thumbnailUrl: cloudinary.url(result.public_id, {
                 secure: true,
-                width: 400,
-                height: 400,
+                width: thumbSize,
+                height: thumbSize,
                 crop: 'fill',
                 quality: 'auto:good',
                 fetch_format: 'auto',
@@ -88,19 +94,50 @@ const uploadToStorage = async (fileBuffer, roomId, originalFilename, mediaType =
         uploadStream.end(fileBuffer);
       });
 
-      // 6 second timeout before fallback
       const timeoutPromise = new Promise((_, reject) =>
         setTimeout(() => reject(new Error('Cloudinary timeout')), 6000)
       );
 
       return await Promise.race([uploadPromise, timeoutPromise]);
     } catch (err) {
-      console.warn(`⚠️ Cloudinary upload issue (${err.message}). Falling back to room-isolated local storage.`);
+      console.warn(`⚠️ Cloudinary upload issue (${err.message}). Falling back to local storage.`);
       return saveToLocal();
     }
-  } else {
-    return saveToLocal();
   }
+
+  return saveToLocal();
+};
+
+/**
+ * Upload buffer to Cloudinary in room-specific folder or fallback to local disk room-specific folder
+ */
+const uploadToStorage = async (fileBuffer, roomId, originalFilename, mediaType = 'image') => {
+  const idStr = roomId.toString();
+  return uploadBufferWithFallback({
+    fileBuffer,
+    cloudinaryFolder: `roamie/rooms/${idStr}/${mediaType === 'receipt' ? 'receipts' : 'gallery'}`,
+    localSubdirs: ['rooms', idStr],
+    relativePrefix: `/uploads/rooms/${idStr}`,
+    publicIdPrefix: 'img',
+    originalFilename,
+  });
+};
+
+/**
+ * Upload user profile avatar to Cloudinary or local disk
+ */
+const uploadAvatarToStorage = async (fileBuffer, userId, originalFilename) => {
+  const idStr = userId.toString();
+  return uploadBufferWithFallback({
+    fileBuffer,
+    cloudinaryFolder: `roamie/avatars/${idStr}`,
+    localSubdirs: ['avatars', idStr],
+    relativePrefix: `/uploads/avatars/${idStr}`,
+    publicIdPrefix: 'avatar',
+    originalFilename,
+    fullWidth: 600,
+    thumbSize: 256,
+  });
 };
 
 /**
@@ -124,6 +161,7 @@ const deleteFromStorage = async (publicId, storageUrl) => {
 module.exports = {
   cloudinary,
   uploadToStorage,
+  uploadAvatarToStorage,
   deleteFromStorage,
   isCloudinaryConfigured,
 };

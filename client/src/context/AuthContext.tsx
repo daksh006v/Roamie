@@ -9,6 +9,9 @@ export interface User {
   email: string;
   phone?: string;
   avatar?: string;
+  bio?: string;
+  homeCity?: string;
+  travelStyle?: string;
   pushToken?: string;
 }
 
@@ -20,6 +23,7 @@ interface AuthContextType {
   register: (name: string, email: string, password: string, phone?: string) => Promise<{ success: boolean; message?: string }>;
   logout: () => Promise<void>;
   updateProfile: (data: Partial<User>) => Promise<{ success: boolean; message?: string }>;
+  uploadAvatar: (uri: string) => Promise<{ success: boolean; message?: string; avatarUrl?: string }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -131,6 +135,38 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const uploadAvatar = async (uri: string) => {
+    try {
+      const formData = new FormData();
+      const filename = uri.split('/').pop() || `avatar_${Date.now()}.jpg`;
+      const match = /\.(\w+)$/.exec(filename);
+      const type = match ? `image/${match[1]}` : 'image/jpeg';
+
+      formData.append('avatar', {
+        uri,
+        name: filename,
+        type,
+      } as any);
+
+      const res = await api.post('/auth/avatar', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: 60000,
+      });
+
+      if (res.data?.success && res.data?.data?.user) {
+        setUser(res.data.data.user);
+        return {
+          success: true,
+          avatarUrl: res.data.data.avatarUrl || res.data.data.user.avatar,
+        };
+      }
+      return { success: false, message: res.data?.message || 'Failed to upload photo' };
+    } catch (err: any) {
+      const msg = err.response?.data?.message || err.message || 'Avatar upload failed';
+      return { success: false, message: msg };
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -141,6 +177,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         register,
         logout,
         updateProfile,
+        uploadAvatar,
       }}
     >
       {children}

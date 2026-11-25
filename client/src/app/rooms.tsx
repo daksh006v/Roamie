@@ -198,9 +198,11 @@ export default function RoomsScreen() {
         {/* Header: Logo + Avatar + Title + Tabs */}
         <RoomsHeader
           userName={user?.name || 'Traveler'}
+          userAvatar={user?.avatar}
           activeTab={activeTab}
           onTabChange={setActiveTab}
           onOpenJoinModal={() => handleOpenJoinModal('')}
+          onOpenProfile={() => router.push('/profile' as any)}
         />
 
         {/* Loading State */}

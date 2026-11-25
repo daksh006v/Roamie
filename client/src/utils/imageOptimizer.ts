@@ -1,3 +1,5 @@
+import { API_URL } from '../services/api';
+
 /**
  * Utility to convert image URLs (especially Cloudinary URLs) to mobile-optimized,
  * responsive, CDN-cached WebP/AVIF images.
@@ -17,6 +19,12 @@ export const getOptimizedImageUrl = (
 
   const cleanUrl = url.trim();
   if (!cleanUrl) return '';
+
+  // Resolve relative backend upload paths against server origin
+  if (cleanUrl.startsWith('/uploads/')) {
+    const serverOrigin = API_URL.replace(/\/api\/?$/, '');
+    return `${serverOrigin}${cleanUrl}`;
+  }
 
   // Local file / data / blob URIs shouldn't be transformed
   if (

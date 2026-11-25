@@ -7,7 +7,9 @@ import {
   Dimensions,
   Image,
 } from 'react-native';
+import { Image as ExpoImage } from 'expo-image';
 import { Colors } from '../../constants/theme';
+import { getOptimizedImageUrl } from '../../utils/imageOptimizer';
 
 const { width } = Dimensions.get('window');
 
@@ -15,9 +17,11 @@ export type RoomTab = 'myRooms' | 'invites' | 'archived';
 
 interface RoomsHeaderProps {
   userName: string;
+  userAvatar?: string;
   activeTab: RoomTab;
   onTabChange: (tab: RoomTab) => void;
   onOpenJoinModal?: () => void;
+  onOpenProfile?: () => void;
 }
 
 /** Generates a deterministic color from a string */
@@ -32,9 +36,11 @@ const getInitialColor = (name: string): string => {
 
 export const RoomsHeader: React.FC<RoomsHeaderProps> = ({
   userName,
+  userAvatar,
   activeTab,
   onTabChange,
   onOpenJoinModal,
+  onOpenProfile,
 }) => {
   const initials = userName
     .split(' ')
@@ -69,9 +75,24 @@ export const RoomsHeader: React.FC<RoomsHeaderProps> = ({
               <Text style={styles.joinPillText}>Join</Text>
             </TouchableOpacity>
           )}
-          <View style={[styles.avatar, { backgroundColor: getInitialColor(userName) }]}>
-            <Text style={styles.avatarText}>{initials}</Text>
-          </View>
+          <TouchableOpacity
+            onPress={onOpenProfile}
+            activeOpacity={0.75}
+            accessibilityLabel="Open profile"
+          >
+            {userAvatar ? (
+              <ExpoImage
+                source={{ uri: getOptimizedImageUrl(userAvatar, { width: 120, height: 120, crop: 'fill' }) }}
+                style={styles.avatarImage}
+                cachePolicy="memory-disk"
+                transition={150}
+              />
+            ) : (
+              <View style={[styles.avatar, { backgroundColor: getInitialColor(userName) }]}>
+                <Text style={styles.avatarText}>{initials}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -154,6 +175,13 @@ const styles = StyleSheet.create({
     borderRadius: 21,
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 2,
+    borderColor: Colors.rooms.sandBorder,
+  },
+  avatarImage: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     borderWidth: 2,
     borderColor: Colors.rooms.sandBorder,
   },
