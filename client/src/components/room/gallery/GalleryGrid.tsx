@@ -96,10 +96,14 @@ export const GalleryGrid: React.FC<GalleryGridProps> = ({
         <View key={group.dateKey} style={styles.sectionContainer}>
           {/* Date Header */}
           <View style={styles.dateHeaderRow}>
-            <Text style={styles.dateHeaderText}>{group.dateLabel}</Text>
-            <Text style={styles.datePhotoCount}>
-              {group.items.length} {group.items.length === 1 ? 'photo' : 'photos'}
-            </Text>
+            <View style={styles.dateBadge}>
+              <Text style={styles.dateHeaderText}>{group.dateLabel}</Text>
+            </View>
+            <View style={styles.countBadge}>
+              <Text style={styles.datePhotoCount}>
+                {group.items.length} {group.items.length === 1 ? 'photo' : 'photos'}
+              </Text>
+            </View>
           </View>
 
           {/* Photo Tiles Grid */}
@@ -108,10 +112,13 @@ export const GalleryGrid: React.FC<GalleryGridProps> = ({
               const globalIdx = photoIndexMap.get(photo._id) ?? 0;
               const imgUrl = photo.thumbnailUrl || photo.storageUrl;
               const optimizedUrl = getOptimizedImageUrl(imgUrl, {
-                width: 300,
-                height: 300,
+                width: 350,
+                height: 350,
                 crop: 'fill',
               });
+              const uploaderAvatar = photo.uploadedBy?.avatar
+                ? getOptimizedImageUrl(photo.uploadedBy.avatar, { width: 80, height: 80, crop: 'fill' })
+                : '';
 
               return (
                 <TouchableOpacity
@@ -128,12 +135,20 @@ export const GalleryGrid: React.FC<GalleryGridProps> = ({
                     transition={200}
                   />
 
-                  {/* Uploader Initials Avatar Badge */}
-                  <View style={styles.uploaderBadge}>
-                    <Text style={styles.uploaderBadgeText}>
-                      {getInitials(photo.uploadedBy?.name)}
-                    </Text>
-                  </View>
+                  {/* Uploader Avatar or Initials Badge */}
+                  {uploaderAvatar ? (
+                    <ExpoImage
+                      source={{ uri: uploaderAvatar }}
+                      style={styles.uploaderAvatarBadge}
+                      cachePolicy="memory-disk"
+                    />
+                  ) : (
+                    <View style={styles.uploaderBadge}>
+                      <Text style={styles.uploaderBadgeText}>
+                        {getInitials(photo.uploadedBy?.name)}
+                      </Text>
+                    </View>
+                  )}
                 </TouchableOpacity>
               );
             })}
@@ -156,19 +171,35 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 10,
     paddingHorizontal: 2,
   },
+  dateBadge: {
+    backgroundColor: '#EFE7DC',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E3D7C7',
+  },
   dateHeaderText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '800',
     color: Colors.rooms.forestGreen,
     letterSpacing: -0.1,
   },
+  countBadge: {
+    backgroundColor: '#FFFDF9',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#EDE5D8',
+  },
   datePhotoCount: {
-    fontSize: 12,
+    fontSize: 11.5,
     color: Colors.rooms.mutedText,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   gridRow: {
     flexDirection: 'row',
@@ -178,27 +209,39 @@ const styles = StyleSheet.create({
   photoTile: {
     width: TILE_SIZE,
     height: TILE_SIZE,
-    borderRadius: 8,
+    borderRadius: 14,
     overflow: 'hidden',
     backgroundColor: '#EAE1D3',
+    borderWidth: 1,
+    borderColor: '#E5DACB',
     position: 'relative',
   },
   photoImage: {
     width: '100%',
     height: '100%',
   },
+  uploaderAvatarBadge: {
+    position: 'absolute',
+    bottom: 6,
+    right: 6,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 1.5,
+    borderColor: '#FFFDF9',
+  },
   uploaderBadge: {
     position: 'absolute',
-    bottom: 5,
-    right: 5,
-    backgroundColor: 'rgba(36, 60, 50, 0.82)',
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+    bottom: 6,
+    right: 6,
+    backgroundColor: 'rgba(36, 60, 50, 0.88)',
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.6)',
+    borderWidth: 1.5,
+    borderColor: '#FFFDF9',
   },
   uploaderBadgeText: {
     fontSize: 9,

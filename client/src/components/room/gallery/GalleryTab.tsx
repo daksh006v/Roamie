@@ -9,7 +9,8 @@ import {
   ActivityIndicator,
   Vibration,
 } from 'react-native';
-import { Feather } from '@expo/vector-icons';
+import { Feather, Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Colors } from '../../../constants/theme';
 import { MediaItem, GalleryFilter, GalleryTabProps } from './galleryTypes';
 import { GalleryHeader } from './GalleryHeader';
@@ -212,10 +213,39 @@ export const GalleryTab: React.FC<GalleryTabProps> = ({ data, onRefresh }) => {
               onUploadPress={handleUploadPress}
             />
           ) : (
-            <GalleryGrid
-              photos={filteredPhotos}
-              onPhotoPress={handlePhotoPress}
-            />
+            <>
+              <LinearGradient
+                colors={['#243C32', '#315244']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.memoriesHero}
+              >
+                <View style={styles.memoriesLeft}>
+                  <View style={styles.memoriesTitleRow}>
+                    <Ionicons name="sparkles" size={15} color="#F3C178" />
+                    <Text style={styles.memoriesTitle}>Trip Memories</Text>
+                  </View>
+                  <Text style={styles.memoriesSubtitle}>
+                    {photos.length} {photos.length === 1 ? 'moment' : 'moments'} captured with {members.length} {members.length === 1 ? 'traveler' : 'travelers'}
+                  </Text>
+                </View>
+                {canUpload && (
+                  <TouchableOpacity
+                    style={styles.memoriesAddBtn}
+                    onPress={handleUploadPress}
+                    activeOpacity={0.85}
+                  >
+                    <Feather name="plus" size={14} color="#FFFFFF" />
+                    <Text style={styles.memoriesAddText}>Add</Text>
+                  </TouchableOpacity>
+                )}
+              </LinearGradient>
+
+              <GalleryGrid
+                photos={filteredPhotos}
+                onPhotoPress={handlePhotoPress}
+              />
+            </>
           )}
         </ScrollView>
       )}
@@ -267,7 +297,51 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    paddingTop: 8,
+    paddingTop: 10,
+  },
+  memoriesHero: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginHorizontal: 12,
+    marginBottom: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 18,
+  },
+  memoriesLeft: {
+    flex: 1,
+    marginRight: 10,
+  },
+  memoriesTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 3,
+  },
+  memoriesTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#FFFDF9',
+  },
+  memoriesSubtitle: {
+    fontSize: 12.5,
+    color: 'rgba(255, 253, 249, 0.78)',
+    fontWeight: '500',
+  },
+  memoriesAddBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: Colors.rooms.burntOrange,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 14,
+  },
+  memoriesAddText: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: '#FFFFFF',
   },
   centerContainer: {
     flex: 1,

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, Modal, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, Modal, TouchableOpacity } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { ChatMessage } from './types';
 import { QUICK_EMOJIS, ALL_EMOJIS } from './helpers';
@@ -32,7 +32,7 @@ export const ChatActionSheet: React.FC<ChatActionSheetProps> = ({
 
   return (
     <>
-      {/* ═══════════════ LONG-PRESS ACTION SHEET MODAL (Image 3) ═══════════════ */}
+      {/* ═══════════════ LONG-PRESS ACTION SHEET MODAL ═══════════════ */}
       <Modal
         visible={visible}
         transparent
@@ -47,7 +47,7 @@ export const ChatActionSheet: React.FC<ChatActionSheetProps> = ({
           <View style={styles.sheetContainer} onStartShouldSetResponder={() => true}>
             <View style={styles.sheetHandle} />
 
-            {/* 5 Quick Emojis + Smiley button (Image 3) */}
+            {/* 5 Quick Emojis + More Emoji Button */}
             <View style={styles.quickEmojisRow}>
               {QUICK_EMOJIS.map((emoji) => (
                 <TouchableOpacity
@@ -70,15 +70,14 @@ export const ChatActionSheet: React.FC<ChatActionSheetProps> = ({
                 onPress={() => setShowAllEmojisModal(true)}
                 activeOpacity={0.7}
               >
-                <Text style={styles.quickEmojiChar}>😊</Text>
+                <Feather name="smile" size={20} color="#C96A25" />
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.sheetHintText}>Double tap a message to ❤️</Text>
+            <Text style={styles.sheetHintText}>Double tap any message to react with ❤️</Text>
 
-            {/* Grouped Actions List (Image 3) */}
+            {/* Primary Actions */}
             <View style={styles.actionsCardGroup}>
-              {/* Reply */}
               <TouchableOpacity
                 style={styles.actionRow}
                 onPress={() => {
@@ -87,43 +86,12 @@ export const ChatActionSheet: React.FC<ChatActionSheetProps> = ({
                 }}
                 activeOpacity={0.7}
               >
-                <Feather name="corner-up-left" size={19} color="#E2E8F0" style={styles.actionIcon} />
+                <Feather name="corner-up-left" size={19} color="#243C32" style={styles.actionIcon} />
                 <Text style={styles.actionText}>Reply</Text>
               </TouchableOpacity>
 
               <View style={styles.actionDivider} />
 
-              {/* Forward */}
-              <TouchableOpacity
-                style={styles.actionRow}
-                onPress={() => {
-                  onClose();
-                  Alert.alert('Forward', 'Forwarding to other rooms will be available in the next update!');
-                }}
-                activeOpacity={0.7}
-              >
-                <Feather name="corner-up-right" size={19} color="#E2E8F0" style={styles.actionIcon} />
-                <Text style={styles.actionText}>Forward</Text>
-              </TouchableOpacity>
-
-              <View style={styles.actionDivider} />
-
-              {/* Create Thread */}
-              <TouchableOpacity
-                style={styles.actionRow}
-                onPress={() => {
-                  onClose();
-                  Alert.alert('Thread', 'Message thread discussion will be available in the next update!');
-                }}
-                activeOpacity={0.7}
-              >
-                <Feather name="message-square" size={19} color="#E2E8F0" style={styles.actionIcon} />
-                <Text style={styles.actionText}>Create Thread</Text>
-              </TouchableOpacity>
-            </View>
-
-            <View style={[styles.actionsCardGroup, { marginTop: 10 }]}>
-              {/* Copy Text */}
               <TouchableOpacity
                 style={styles.actionRow}
                 onPress={() => {
@@ -131,13 +99,12 @@ export const ChatActionSheet: React.FC<ChatActionSheetProps> = ({
                 }}
                 activeOpacity={0.7}
               >
-                <Feather name="copy" size={19} color="#E2E8F0" style={styles.actionIcon} />
+                <Feather name="copy" size={19} color="#243C32" style={styles.actionIcon} />
                 <Text style={styles.actionText}>Copy Text</Text>
               </TouchableOpacity>
 
               <View style={styles.actionDivider} />
 
-              {/* Pin / Unpin Message */}
               <TouchableOpacity
                 style={styles.actionRow}
                 onPress={() => {
@@ -148,7 +115,7 @@ export const ChatActionSheet: React.FC<ChatActionSheetProps> = ({
                 <Feather
                   name={selectedMessage?.isPinned ? 'x-circle' : 'bookmark'}
                   size={19}
-                  color={selectedMessage?.isPinned ? '#F59E0B' : '#E2E8F0'}
+                  color={selectedMessage?.isPinned ? '#C96A25' : '#243C32'}
                   style={styles.actionIcon}
                 />
                 <Text style={styles.actionText}>
@@ -156,7 +123,6 @@ export const ChatActionSheet: React.FC<ChatActionSheetProps> = ({
                 </Text>
               </TouchableOpacity>
 
-              {/* Delete Message (Author, Owner, or Admin) */}
               {canDelete && (
                 <>
                   <View style={styles.actionDivider} />
@@ -167,8 +133,8 @@ export const ChatActionSheet: React.FC<ChatActionSheetProps> = ({
                     }}
                     activeOpacity={0.7}
                   >
-                    <Feather name="trash-2" size={19} color="#EF4444" style={styles.actionIcon} />
-                    <Text style={[styles.actionText, { color: '#EF4444' }]}>Delete Message</Text>
+                    <Feather name="trash-2" size={19} color="#C0392B" style={styles.actionIcon} />
+                    <Text style={[styles.actionText, { color: '#C0392B' }]}>Delete Message</Text>
                   </TouchableOpacity>
                 </>
               )}
@@ -189,7 +155,7 @@ export const ChatActionSheet: React.FC<ChatActionSheetProps> = ({
           activeOpacity={1}
           onPress={() => setShowAllEmojisModal(false)}
         >
-          <View style={styles.allEmojisContainer}>
+          <View style={styles.allEmojisContainer} onStartShouldSetResponder={() => true}>
             <View style={styles.sheetHandle} />
             <Text style={styles.allEmojisTitle}>React with Emoji</Text>
             <View style={styles.allEmojisGrid}>

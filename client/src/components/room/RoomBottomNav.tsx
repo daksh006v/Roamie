@@ -4,10 +4,10 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  Dimensions,
   Platform,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/theme';
 
 export type RoomNavTab = 'itinerary' | 'gallery' | 'chat' | 'expenses' | 'about';
@@ -17,118 +17,82 @@ interface RoomBottomNavProps {
   onTabChange: (tab: RoomNavTab) => void;
 }
 
+const SIDE_TABS_LEFT: { key: RoomNavTab; label: string; icon: keyof typeof Feather.glyphMap }[] = [
+  { key: 'itinerary', label: 'Itinerary', icon: 'calendar' },
+  { key: 'gallery', label: 'Gallery', icon: 'image' },
+];
+
+const SIDE_TABS_RIGHT: { key: RoomNavTab; label: string; icon: keyof typeof Feather.glyphMap }[] = [
+  { key: 'expenses', label: 'Expenses', icon: 'credit-card' },
+  { key: 'about', label: 'About', icon: 'info' },
+];
+
 export const RoomBottomNav: React.FC<RoomBottomNavProps> = ({
   activeTab,
   onTabChange,
 }) => {
+  const insets = useSafeAreaInsets();
+  const bottomPadding = Math.max(insets.bottom, Platform.OS === 'ios' ? 20 : 10);
+
+  const renderSideTab = (tab: { key: RoomNavTab; label: string; icon: keyof typeof Feather.glyphMap }) => {
+    const isActive = activeTab === tab.key;
+    return (
+      <TouchableOpacity
+        key={tab.key}
+        style={styles.tabItem}
+        onPress={() => onTabChange(tab.key)}
+        activeOpacity={0.75}
+      >
+        <View style={[styles.iconPill, isActive && styles.activeIconPill]}>
+          <Feather
+            name={tab.icon}
+            size={19}
+            color={isActive ? Colors.rooms.burntOrange : Colors.rooms.mutedText}
+          />
+        </View>
+        <Text
+          style={[
+            styles.tabLabel,
+            isActive && styles.activeTabLabel,
+          ]}
+          numberOfLines={1}
+        >
+          {tab.label}
+        </Text>
+      </TouchableOpacity>
+    );
+  };
+
+  const isChatActive = activeTab === 'chat';
+
   return (
-    <View style={styles.container}>
-      {/* 1. Itinerary Tab */}
-      <TouchableOpacity
-        style={[styles.tabItem, activeTab === 'itinerary' && styles.activePill]}
-        onPress={() => onTabChange('itinerary')}
-        activeOpacity={0.75}
-      >
-        <Feather
-          name="calendar"
-          size={20}
-          color={activeTab === 'itinerary' ? Colors.rooms.darkText : Colors.rooms.mutedText}
-        />
-        <Text
-          style={[
-            styles.tabLabel,
-            activeTab === 'itinerary' && styles.activeTabLabel,
-          ]}
-        >
-          Itinerary
-        </Text>
-      </TouchableOpacity>
+    <View style={[styles.container, { paddingBottom: bottomPadding }]}>
+      {SIDE_TABS_LEFT.map(renderSideTab)}
 
-      {/* 2. Gallery Tab */}
-      <TouchableOpacity
-        style={[styles.tabItem, activeTab === 'gallery' && styles.activePill]}
-        onPress={() => onTabChange('gallery')}
-        activeOpacity={0.75}
-      >
-        <Feather
-          name="image"
-          size={20}
-          color={activeTab === 'gallery' ? Colors.rooms.darkText : Colors.rooms.mutedText}
-        />
-        <Text
-          style={[
-            styles.tabLabel,
-            activeTab === 'gallery' && styles.activeTabLabel,
-          ]}
-        >
-          Gallery
-        </Text>
-      </TouchableOpacity>
-
-      {/* 3. Center Elevated Chat Button */}
+      {/* Center Elevated Chat Button */}
       <View style={styles.centerButtonWrapper}>
         <TouchableOpacity
           style={[
             styles.chatCenterButton,
-            activeTab === 'chat' && styles.activeChatButton,
+            isChatActive && styles.activeChatButton,
           ]}
           onPress={() => onTabChange('chat')}
           activeOpacity={0.88}
         >
-          <Feather name="message-circle" size={24} color="#FFFFFF" />
+          <Feather name="message-circle" size={23} color="#FFFFFF" />
         </TouchableOpacity>
         <Text
           style={[
             styles.tabLabel,
-            { marginTop: 4 },
-            activeTab === 'chat' && styles.activeTabLabel,
+            { marginTop: 3 },
+            isChatActive && styles.activeTabLabel,
           ]}
         >
           Chat
         </Text>
       </View>
 
-      {/* 4. Expenses Tab */}
-      <TouchableOpacity
-        style={[styles.tabItem, activeTab === 'expenses' && styles.activePill]}
-        onPress={() => onTabChange('expenses')}
-        activeOpacity={0.75}
-      >
-        <Feather
-          name="credit-card"
-          size={20}
-          color={activeTab === 'expenses' ? Colors.rooms.darkText : Colors.rooms.mutedText}
-        />
-        <Text
-          style={[
-            styles.tabLabel,
-            activeTab === 'expenses' && styles.activeTabLabel,
-          ]}
-        >
-          Expenses
-        </Text>
-      </TouchableOpacity>
-
-      {/* 5. About Tab */}
-      <TouchableOpacity
-        style={[styles.tabItem, activeTab === 'about' && styles.activePill]}
-        onPress={() => onTabChange('about')}
-        activeOpacity={0.75}
-      >
-        <Feather
-          name="info"
-          size={20}
-          color={activeTab === 'about' ? Colors.rooms.darkText : Colors.rooms.mutedText}
-        />
-        <Text
-          style={[
-            styles.tabLabel,
-            activeTab === 'about' && styles.activeTabLabel,
-          ]}
-        >
-          About
-        </Text>
-      </TouchableOpacity>
+      {SIDE_TABS_RIGHT.map(renderSideTab)}
     </View>
   );
 };
@@ -136,57 +100,68 @@ export const RoomBottomNav: React.FC<RoomBottomNavProps> = ({
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-end',
     justifyContent: 'space-around',
-    backgroundColor: Colors.rooms.background,
+    backgroundColor: '#FFFDF9',
     borderTopWidth: 1,
-    borderTopColor: Colors.rooms.sandBorder,
+    borderTopColor: '#EADBCB',
     paddingTop: 8,
-    paddingBottom: Platform.OS === 'ios' ? 24 : 12,
-    paddingHorizontal: 8,
+    paddingHorizontal: 6,
+    shadowColor: '#243C32',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 8,
   },
   tabItem: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 20,
-    minWidth: 58,
+    paddingVertical: 2,
   },
-  activePill: {
-    backgroundColor: Colors.rooms.greige,
+  iconPill: {
+    paddingHorizontal: 14,
+    paddingVertical: 5,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  activeIconPill: {
+    backgroundColor: '#FDF1E6',
   },
   tabLabel: {
     fontSize: 11,
     color: Colors.rooms.mutedText,
-    fontWeight: '500',
-    marginTop: 3,
+    fontWeight: '600',
+    marginTop: 2,
   },
   activeTabLabel: {
-    color: Colors.rooms.darkText,
-    fontWeight: '700',
+    color: Colors.rooms.burntOrange,
+    fontWeight: '800',
   },
   centerButtonWrapper: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: -16,
+    marginTop: -20,
   },
   chatCenterButton: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
     backgroundColor: Colors.rooms.forestGreen,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: Colors.rooms.forestGreen,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
+    shadowOpacity: 0.28,
     shadowRadius: 8,
     elevation: 6,
     borderWidth: 3,
-    borderColor: Colors.rooms.background,
+    borderColor: '#FFFDF9',
   },
   activeChatButton: {
     backgroundColor: Colors.rooms.burntOrange,
+    shadowColor: Colors.rooms.burntOrange,
   },
 });

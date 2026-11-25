@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, Alert } from 'react-native';
+import React, { useRef } from 'react';
+import { View, Text, TouchableOpacity, Alert, Vibration } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
 import { Feather } from '@expo/vector-icons';
 import { ChatMessage } from './types';
@@ -32,6 +32,21 @@ export const ChatMessageBubble: React.FC<ChatMessageBubbleProps> = ({
   onReaction,
   onScrollToReply,
 }) => {
+  const lastTapRef = useRef<number>(0);
+
+  const handleMessagePress = () => {
+    const now = Date.now();
+    if (now - lastTapRef.current < 300) {
+      lastTapRef.current = 0;
+      try {
+        Vibration.vibrate(15);
+      } catch (e) {}
+      onReaction(item._id, '❤️');
+    } else {
+      lastTapRef.current = now;
+    }
+  };
+
   // Show date divider if first message or different day
   const showDate = !prevItem || getDateKey(prevItem.createdAt) !== getDateKey(item.createdAt);
 
@@ -193,6 +208,7 @@ export const ChatMessageBubble: React.FC<ChatMessageBubbleProps> = ({
 
   const sender = item.senderId;
   const senderName = sender?.name || 'Traveler';
+  const isOwnMessage = Boolean(currentUserId && sender?._id === currentUserId);
   const roleColor = sender?._id ? getRoleColor(sender._id, getAvatarColor(senderName)) : '#243C32';
 
   return (
@@ -226,11 +242,12 @@ export const ChatMessageBubble: React.FC<ChatMessageBubbleProps> = ({
 
           <TouchableOpacity
             style={styles.messageRow}
+            onPress={handleMessagePress}
             onLongPress={() => onLongPress(item)}
             delayLongPress={300}
-            activeOpacity={0.9}
+            activeOpacity={0.85}
           >
-            {/* Avatar on Left (Image 1) */}
+            {/* Avatar on Left */}
             {sender?.avatar ? (
               <ExpoImage
                 source={{ uri: getOptimizedImageUrl(sender.avatar, { width: 120, height: 120, crop: 'fill' }) }}
@@ -244,8 +261,8 @@ export const ChatMessageBubble: React.FC<ChatMessageBubbleProps> = ({
               </View>
             )}
 
-            {/* Message Content Column */}
-            <View style={styles.messageContentCol}>
+            {/* Message Content Card */}
+            <View style={[styles.messageContentCol, isOwnMessage ? styles.ownMessageCard : styles.otherMessageCard]}>
               {/* Sender Name & Timestamp Header */}
               <View style={styles.senderHeaderRow}>
                 <Text style={[styles.senderName, { color: roleColor }]} numberOfLines={1}>
