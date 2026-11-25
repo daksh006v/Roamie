@@ -109,12 +109,7 @@ export default function RoomScreen() {
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
 
       {/* Tab Views */}
-      <View
-        style={[
-          styles.tabContent,
-          activeTab === 'chat' && !isKeyboardVisible && styles.chatTabSpacing,
-        ]}
-      >
+      <View style={styles.tabContent}>
         {activeTab === 'about' && (
           <AboutTab data={roomData} onRefresh={fetchRoomDetails} />
         )}
@@ -151,9 +146,6 @@ const styles = StyleSheet.create({
   },
   tabContent: {
     flex: 1,
-  },
-  chatTabSpacing: {
-    marginBottom: 22,
   },
   centerContainer: {
     flex: 1,

@@ -79,12 +79,11 @@ export const RoomBottomNav: React.FC<RoomBottomNavProps> = ({
           onPress={() => onTabChange('chat')}
           activeOpacity={0.88}
         >
-          <Feather name="message-circle" size={23} color="#FFFFFF" />
+          <Feather name="message-circle" size={20} color="#FFFFFF" />
         </TouchableOpacity>
         <Text
           style={[
             styles.tabLabel,
-            { marginTop: 3 },
             isChatActive && styles.activeTabLabel,
           ]}
         >
@@ -143,22 +142,19 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: -14,
   },
   chatCenterButton: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     backgroundColor: Colors.rooms.forestGreen,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: Colors.rooms.forestGreen,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.28,
-    shadowRadius: 8,
-    elevation: 6,
-    borderWidth: 3,
-    borderColor: '#FFFDF9',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.22,
+    shadowRadius: 4,
+    elevation: 3,
   },
   activeChatButton: {
     backgroundColor: Colors.rooms.burntOrange,

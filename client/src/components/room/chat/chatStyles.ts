@@ -508,8 +508,6 @@ export const styles = StyleSheet.create({
     backgroundColor: '#FAF7F2',
     borderTopWidth: 1,
     borderTopColor: '#EDE5D8',
-    borderBottomWidth: 1,
-    borderBottomColor: '#EDE5D8',
   },
   attachCircleBtn: {
     width: 40,
