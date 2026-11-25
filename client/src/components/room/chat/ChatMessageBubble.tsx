@@ -208,15 +208,35 @@ export const ChatMessageBubble: React.FC<ChatMessageBubbleProps> = ({
 
   const sender = item.senderId;
   const senderName = sender?.name || 'Traveler';
-  const isOwnMessage = Boolean(currentUserId && sender?._id === currentUserId);
   const roleColor = sender?._id ? getRoleColor(sender._id, getAvatarColor(senderName)) : '#243C32';
+
+  const prevSenderId = typeof prevItem?.senderId === 'object' ? prevItem?.senderId?._id : prevItem?.senderId;
+  const currSenderId = typeof sender === 'object' ? sender?._id : sender;
+  const sameSender = Boolean(prevSenderId && currSenderId && prevSenderId === currSenderId);
+  const timeDiffMs = prevItem
+    ? Math.abs(new Date(item.createdAt).getTime() - new Date(prevItem.createdAt).getTime())
+    : Infinity;
+  const isGrouped = Boolean(
+    prevItem &&
+      !showDate &&
+      prevItem.type !== 'system' &&
+      !item.replyTo &&
+      sameSender &&
+      timeDiffMs <= 5 * 60 * 1000
+  );
 
   return (
     <View key={item._id}>
       {showDate && renderDateSeparator(formatDateSeparator(item.createdAt))}
 
       <SwipeableMessageRow onSwipeReply={() => onSwipeReply(item)}>
-        <View style={[styles.messageOuterContainer, isHighlighted && styles.messageHighlightBg]}>
+        <View
+          style={[
+            styles.messageOuterContainer,
+            isGrouped ? styles.messageGroupedSpacing : styles.messageGroupStartSpacing,
+            isHighlighted && styles.messageHighlightBg,
+          ]}
+        >
           {/* In-feed reply quote (Discord style: positioned above avatar and message row) */}
           {item.replyTo ? (
             <View style={styles.inFeedReplyRow}>
@@ -247,8 +267,10 @@ export const ChatMessageBubble: React.FC<ChatMessageBubbleProps> = ({
             delayLongPress={300}
             activeOpacity={0.85}
           >
-            {/* Avatar on Left */}
-            {sender?.avatar ? (
+            {/* Avatar on Left (hidden for grouped messages while preserving alignment) */}
+            {isGrouped ? (
+              <View style={styles.avatarSpacer} />
+            ) : sender?.avatar ? (
               <ExpoImage
                 source={{ uri: getOptimizedImageUrl(sender.avatar, { width: 120, height: 120, crop: 'fill' }) }}
                 style={styles.avatar}
@@ -261,15 +283,17 @@ export const ChatMessageBubble: React.FC<ChatMessageBubbleProps> = ({
               </View>
             )}
 
-            {/* Message Content Card */}
-            <View style={[styles.messageContentCol, isOwnMessage ? styles.ownMessageCard : styles.otherMessageCard]}>
-              {/* Sender Name & Timestamp Header */}
-              <View style={styles.senderHeaderRow}>
-                <Text style={[styles.senderName, { color: roleColor }]} numberOfLines={1}>
-                  {senderName}
-                </Text>
-                <Text style={styles.messageTimestamp}>{formatTime(item.createdAt)}</Text>
-              </View>
+            {/* Boxless Message Content Column */}
+            <View style={styles.messageContentCol}>
+              {/* Sender Name & Timestamp Header (only on first message in group) */}
+              {!isGrouped && (
+                <View style={styles.senderHeaderRow}>
+                  <Text style={[styles.senderName, { color: roleColor }]} numberOfLines={1}>
+                    {senderName}
+                  </Text>
+                  <Text style={styles.messageTimestamp}>{formatTime(item.createdAt)}</Text>
+                </View>
+              )}
 
               {/* Message Body Text */}
               {item.content || item.text ? (

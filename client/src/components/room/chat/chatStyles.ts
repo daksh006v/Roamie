@@ -171,12 +171,19 @@ export const styles = StyleSheet.create({
   /* ═══ Message Item Row (Image 1) ═══ */
   swipeRowWrapper: {
     position: 'relative',
-    marginBottom: 16,
   },
   messageOuterContainer: {
     paddingHorizontal: 4,
-    paddingVertical: 2,
+    paddingVertical: 1,
     borderRadius: 8,
+  },
+  messageGroupStartSpacing: {
+    marginTop: 12,
+    marginBottom: 2,
+  },
+  messageGroupedSpacing: {
+    marginTop: 2,
+    marginBottom: 2,
   },
   messageHighlightBg: {
     backgroundColor: '#F3E5D5',
@@ -210,7 +217,7 @@ export const styles = StyleSheet.create({
     borderRadius: 19,
     marginRight: 12,
     backgroundColor: '#E5D8C7',
-    marginTop: 1,
+    marginTop: 2,
   },
   avatarFallback: {
     width: 38,
@@ -219,7 +226,11 @@ export const styles = StyleSheet.create({
     marginRight: 12,
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 1,
+    marginTop: 2,
+  },
+  avatarSpacer: {
+    width: 38,
+    marginRight: 12,
   },
   avatarInitials: {
     color: '#FFFFFF',
@@ -228,23 +239,7 @@ export const styles = StyleSheet.create({
   },
   messageContentCol: {
     flex: 1,
-    borderRadius: 16,
-    paddingHorizontal: 13,
-    paddingVertical: 9,
-    borderWidth: 1,
-    shadowColor: '#243C32',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 3,
-    elevation: 1,
-  },
-  ownMessageCard: {
-    backgroundColor: '#FDF6EE',
-    borderColor: '#EEDAC6',
-  },
-  otherMessageCard: {
-    backgroundColor: '#FFFDF9',
-    borderColor: '#EADBCB',
+    paddingVertical: 1,
   },
   senderHeaderRow: {
     flexDirection: 'row',
@@ -513,6 +508,8 @@ export const styles = StyleSheet.create({
     backgroundColor: '#FAF7F2',
     borderTopWidth: 1,
     borderTopColor: '#EDE5D8',
+    borderBottomWidth: 1,
+    borderBottomColor: '#EDE5D8',
   },
   attachCircleBtn: {
     width: 40,

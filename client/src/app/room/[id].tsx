@@ -153,7 +153,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   chatTabSpacing: {
-    marginBottom: 18,
+    marginBottom: 22,
   },
   centerContainer: {
     flex: 1,
