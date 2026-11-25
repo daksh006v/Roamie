@@ -15,6 +15,7 @@ import { Feather } from '@expo/vector-icons';
 import { Colors } from '../../constants/theme';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
+import { connectSocket } from '../../services/socket';
 import { RoomBottomNav, RoomNavTab } from '../../components/room/RoomBottomNav';
 import { AboutTab, RoomDetailsData } from '../../components/room/AboutTab';
 import { ChatTab } from '../../components/room/ChatTab';
@@ -76,6 +77,7 @@ export default function RoomScreen() {
 
   useEffect(() => {
     fetchRoomDetails();
+    connectSocket().catch(() => {});
   }, [fetchRoomDetails]);
 
   // Loading state

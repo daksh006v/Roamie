@@ -119,4 +119,7 @@ messageSchema.pre('save', function (next) {
   next();
 });
 
+messageSchema.index({ roomId: 1, createdAt: -1 });
+messageSchema.index({ roomId: 1, isPinned: 1, pinnedAt: -1 });
+
 module.exports = mongoose.model('Message', messageSchema);

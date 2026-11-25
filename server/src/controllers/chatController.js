@@ -20,28 +20,29 @@ const getMessages = async (req, res) => {
       query.createdAt = { $lt: new Date(before) };
     }
 
-    const messages = await Message.find(query)
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .populate('senderId', 'name avatar email')
-      .populate({
-        path: 'replyTo',
-        select: 'content text senderId media type',
-        populate: { path: 'senderId', select: 'name' },
-      });
-
-    const total = await Message.countDocuments({ roomId });
-
-    // Fetch all pinned messages for the room regardless of pagination
-    const pinnedMessages = await Message.find({ roomId, isPinned: true })
-      .sort({ pinnedAt: -1, createdAt: -1 })
-      .populate('senderId', 'name avatar email')
-      .populate({
-        path: 'replyTo',
-        select: 'content text senderId media type',
-        populate: { path: 'senderId', select: 'name' },
-      });
+    const [messages, total, pinnedMessages] = await Promise.all([
+      Message.find(query)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .populate('senderId', 'name avatar email')
+        .populate({
+          path: 'replyTo',
+          select: 'content text senderId media type',
+          populate: { path: 'senderId', select: 'name' },
+        })
+        .lean(),
+      Message.countDocuments({ roomId }),
+      Message.find({ roomId, isPinned: true })
+        .sort({ pinnedAt: -1, createdAt: -1 })
+        .populate('senderId', 'name avatar email')
+        .populate({
+          path: 'replyTo',
+          select: 'content text senderId media type',
+          populate: { path: 'senderId', select: 'name' },
+        })
+        .lean(),
+    ]);
 
     return sendSuccess(res, 'Messages fetched successfully', {
       messages: messages.reverse(), // Chronological order for UI

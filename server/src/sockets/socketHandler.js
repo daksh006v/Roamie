@@ -29,6 +29,23 @@ const initSocketIO = (io) => {
 
   io.on('connection', (socket) => {
     console.log(`🔌 Socket connected: ${socket.user.name} (${socket.user._id})`);
+    socket.authorizedRooms = new Map();
+
+    const getAuthorizedRole = async (roomId) => {
+      const key = roomId.toString();
+      if (socket.authorizedRooms.has(key)) {
+        return socket.authorizedRooms.get(key);
+      }
+      const membership = await RoomMember.findOne({
+        roomId,
+        userId: socket.user._id,
+      }).select('role').lean();
+      if (membership) {
+        socket.authorizedRooms.set(key, membership.role);
+        return membership.role;
+      }
+      return null;
+    };
 
     // 1. Join Room Channel with database authorization check
     socket.on('join_room', async ({ roomId }, callback) => {
@@ -38,13 +55,8 @@ const initSocketIO = (io) => {
           return;
         }
 
-        // Strictly verify user is a registered member of this room
-        const membership = await RoomMember.findOne({
-          roomId,
-          userId: socket.user._id,
-        });
-
-        if (!membership) {
+        const role = await getAuthorizedRole(roomId);
+        if (!role) {
           console.warn(`⛔ Unauthorized socket join attempt by ${socket.user.name} for room ${roomId}`);
           if (callback) callback({ success: false, error: 'Not authorized: You are not a member of this room' });
           return;
@@ -52,10 +64,10 @@ const initSocketIO = (io) => {
 
         const roomChannel = `room:${roomId}`;
         socket.join(roomChannel);
-        console.log(`👤 ${socket.user.name} (${membership.role}) joined socket room: ${roomChannel}`);
+        console.log(`👤 ${socket.user.name} (${role}) joined socket room: ${roomChannel}`);
 
         if (callback) {
-          callback({ success: true, room: roomChannel, role: membership.role });
+          callback({ success: true, room: roomChannel, role });
         }
       } catch (error) {
         console.error('Socket join_room error:', error);
@@ -73,7 +85,7 @@ const initSocketIO = (io) => {
     // 3. Real-time Send Message via Socket
     socket.on('send_message', async (data, callback) => {
       try {
-        const { roomId, content, text, media, mediaUrl, type, messageType, replyTo, metadata } = data || {};
+        const { roomId, content, text, media, mediaUrl, type, messageType, replyTo, metadata, clientTempId } = data || {};
         const messageContent = (content || text || '').trim();
         const mediaObj = media || (mediaUrl ? { url: mediaUrl, type: 'image' } : null);
 
@@ -82,13 +94,8 @@ const initSocketIO = (io) => {
           return;
         }
 
-        // Strictly verify membership in DB before processing
-        const membership = await RoomMember.findOne({
-          roomId,
-          userId: socket.user._id,
-        });
-
-        if (!membership) {
+        const role = await getAuthorizedRole(roomId);
+        if (!role) {
           if (callback) callback({ success: false, error: 'Not authorized: You are not a member of this room' });
           return;
         }
@@ -108,15 +115,33 @@ const initSocketIO = (io) => {
           metadata: (metadata && Object.keys(metadata).length > 0) ? metadata : null,
         });
 
-        const populatedMessage = await Message.findById(message._id)
-          .populate('senderId', 'name avatar email')
-          .populate({
-            path: 'replyTo',
-            select: 'content text senderId media type',
-            populate: { path: 'senderId', select: 'name' },
-          });
+        let populatedMessage;
+        if (replyTo) {
+          populatedMessage = await Message.findById(message._id)
+            .populate('senderId', 'name avatar email')
+            .populate({
+              path: 'replyTo',
+              select: 'content text senderId media type',
+              populate: { path: 'senderId', select: 'name' },
+            })
+            .lean();
+        } else {
+          populatedMessage = {
+            ...message.toObject(),
+            senderId: {
+              _id: socket.user._id,
+              name: socket.user.name,
+              avatar: socket.user.avatar,
+              email: socket.user.email,
+            },
+          };
+        }
 
-        // Broadcast to all sockets in room
+        if (clientTempId) {
+          populatedMessage.clientTempId = clientTempId;
+        }
+
+        // Broadcast immediately to all sockets in room
         io.to(`room:${roomId}`).emit('new_message', populatedMessage);
 
         if (callback) {
@@ -136,9 +161,8 @@ const initSocketIO = (io) => {
           return;
         }
 
-        // Verify membership
-        const membership = await RoomMember.findOne({ roomId, userId: socket.user._id });
-        if (!membership) {
+        const role = await getAuthorizedRole(roomId);
+        if (!role) {
           if (callback) callback({ success: false, error: 'Not authorized' });
           return;
         }
@@ -181,8 +205,8 @@ const initSocketIO = (io) => {
           return;
         }
 
-        const membership = await RoomMember.findOne({ roomId, userId: socket.user._id });
-        if (!membership) {
+        const role = await getAuthorizedRole(roomId);
+        if (!role) {
           if (callback) callback({ success: false, error: 'Not authorized' });
           return;
         }
@@ -194,8 +218,8 @@ const initSocketIO = (io) => {
         }
 
         const isAuthor = message.senderId.toString() === socket.user._id.toString();
-        const isOwner = membership.role === 'owner';
-        const isAdmin = membership.role === 'admin';
+        const isOwner = role === 'owner';
+        const isAdmin = role === 'admin';
 
         if (!isAuthor && !isOwner && !isAdmin) {
           if (callback) callback({ success: false, error: 'Not authorized to delete this message' });
@@ -223,8 +247,8 @@ const initSocketIO = (io) => {
           return;
         }
 
-        const membership = await RoomMember.findOne({ roomId, userId: socket.user._id });
-        if (!membership) {
+        const role = await getAuthorizedRole(roomId);
+        if (!role) {
           if (callback) callback({ success: false, error: 'Not authorized' });
           return;
         }

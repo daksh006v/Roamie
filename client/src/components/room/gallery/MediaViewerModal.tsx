@@ -16,6 +16,7 @@ import { Feather } from '@expo/vector-icons';
 import { Colors } from '../../../constants/theme';
 import { MediaItem } from './galleryTypes';
 import api from '../../../services/api';
+import { getOptimizedImageUrl } from '../../../utils/imageOptimizer';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -62,6 +63,17 @@ export const MediaViewerModal: React.FC<MediaViewerModalProps> = ({
   useEffect(() => {
     setCurrentIndex(initialIndex);
   }, [initialIndex, visible]);
+
+  useEffect(() => {
+    if (!visible || !photos.length) return;
+    const adjacentUrls = [photos[currentIndex - 1], photos[currentIndex + 1]]
+      .filter(Boolean)
+      .map((p) => getOptimizedImageUrl(p.storageUrl, { width: 1400 }))
+      .filter(Boolean);
+    if (adjacentUrls.length > 0) {
+      ExpoImage.prefetch(adjacentUrls).catch(() => {});
+    }
+  }, [visible, currentIndex, photos]);
 
   if (!photos.length || currentIndex < 0 || currentIndex >= photos.length) {
     return null;
@@ -181,11 +193,12 @@ export const MediaViewerModal: React.FC<MediaViewerModalProps> = ({
         {/* Center Image with Nav Chevrons */}
         <View style={styles.imageViewerContainer}>
           <ExpoImage
-            source={{ uri: currentPhoto.storageUrl }}
+            source={{ uri: getOptimizedImageUrl(currentPhoto.storageUrl, { width: 1400 }) }}
+            recyclingKey={currentPhoto._id}
             style={styles.mainImage}
             contentFit="contain"
             cachePolicy="memory-disk"
-            transition={200}
+            transition={120}
           />
 
           {/* Left / Right Nav Arrows */}

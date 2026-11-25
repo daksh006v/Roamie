@@ -21,31 +21,32 @@ const uploadMedia = async (req, res) => {
       return sendError(res, 'Please provide at least one image to upload', 400);
     }
 
-    const uploadedMediaList = [];
+    const uploadedMediaList = await Promise.all(
+      files.map(async (file) => {
+        const storageResult = await uploadToStorage(
+          file.buffer,
+          roomId,
+          file.originalname,
+          mediaType
+        );
 
-    for (const file of files) {
-      const storageResult = await uploadToStorage(
-        file.buffer,
-        roomId,
-        file.originalname,
-        mediaType
-      );
+        const media = await Media.create({
+          roomId,
+          uploadedBy: req.user._id,
+          storageUrl: storageResult.storageUrl,
+          thumbnailUrl: storageResult.thumbnailUrl,
+          publicId: storageResult.publicId,
+          originalFilename: file.originalname || 'photo.jpg',
+          mediaType,
+          width: storageResult.width,
+          height: storageResult.height,
+        });
 
-      const media = await Media.create({
-        roomId,
-        uploadedBy: req.user._id,
-        storageUrl: storageResult.storageUrl,
-        thumbnailUrl: storageResult.thumbnailUrl,
-        publicId: storageResult.publicId,
-        originalFilename: file.originalname || 'photo.jpg',
-        mediaType,
-        width: storageResult.width,
-        height: storageResult.height,
-      });
-
-      const populatedMedia = await Media.findById(media._id).populate('uploadedBy', 'name avatar email');
-      uploadedMediaList.push(populatedMedia);
-    }
+        return Media.findById(media._id)
+          .populate('uploadedBy', 'name avatar email')
+          .lean();
+      })
+    );
 
     // If gallery photos, post system activity message & broadcast real-time socket event
     if (mediaType === 'image') {
@@ -128,13 +129,15 @@ const getRoomMedia = async (req, res) => {
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
-    const mediaList = await Media.find(query)
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(parseInt(limit))
-      .populate('uploadedBy', 'name avatar email');
-
-    const total = await Media.countDocuments(query);
+    const [mediaList, total] = await Promise.all([
+      Media.find(query)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(parseInt(limit))
+        .populate('uploadedBy', 'name avatar email')
+        .lean(),
+      Media.countDocuments(query),
+    ]);
 
     return sendSuccess(res, 'Room gallery fetched successfully', {
       total,

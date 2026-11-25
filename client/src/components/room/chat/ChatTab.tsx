@@ -35,16 +35,19 @@ import api from '../../../services/api';
 import { connectSocket } from '../../../services/socket';
 import { getOptimizedImageUrl } from '../../../utils/imageOptimizer';
 
+const roomMessagesCache = new Map<string, { messages: ChatMessage[]; pinned: ChatMessage[] }>();
+
 export const ChatTab: React.FC<ChatTabProps> = ({ data, onRefresh }) => {
   const router = useRouter();
   const { room, membership, members, stats, currentUserId } = data;
+  const cachedRoom = roomMessagesCache.get(room._id);
 
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [pinnedMessages, setPinnedMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>(() => cachedRoom?.messages || []);
+  const [pinnedMessages, setPinnedMessages] = useState<ChatMessage[]>(() => cachedRoom?.pinned || []);
   const [pinnedBannerIndex, setPinnedBannerIndex] = useState(0);
   const [inputText, setInputText] = useState('');
   const [isFocused, setIsFocused] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !cachedRoom);
   const [sending, setSending] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [page, setPage] = useState(1);
@@ -86,7 +89,7 @@ export const ChatTab: React.FC<ChatTabProps> = ({ data, onRefresh }) => {
       })
       .catch((err) => console.error('Error loading cleared chat timestamp:', err));
 
-    return () => {
+  return () => {
       isMounted = false;
     };
   }, [clearChatStorageKey]);
@@ -126,14 +129,27 @@ export const ChatTab: React.FC<ChatTabProps> = ({ data, onRefresh }) => {
     memberRoleMap.current = map;
   }, [members]);
 
-  const getRoleForUser = (userId: string): 'owner' | 'admin' | 'member' => {
-    return (memberRoleMap.current[userId] as any) || 'member';
-  };
+  const getRoleForUser = useCallback((userId: string): 'owner' | 'admin' | 'member' => {
+  return (memberRoleMap.current[userId] as any) || 'member';
+  }, []);
 
-  const getRoleColor = (userId: string, defaultColor?: string): string => {
-    const role = getRoleForUser(userId);
+  const getRoleColor = useCallback(
+    (userId: string, defaultColor?: string): string => {
+      const role = getRoleForUser(userId);
     return (roleColors as any)[role] || defaultColor || '#243C32';
-  };
+    },
+    [getRoleForUser, roleColors]
+  );
+
+  // Keep in-memory cache synced for instant tab switching
+  useEffect(() => {
+    if (messages.length > 0 || pinnedMessages.length > 0) {
+      roomMessagesCache.set(room._id, {
+        messages: messages.filter((m) => !m._id.startsWith('optimistic_') && !m._id.startsWith('temp_')),
+        pinned: pinnedMessages,
+      });
+    }
+  }, [room._id, messages, pinnedMessages]);
 
   /* ─── Scroll to referenced reply message & highlight ─── */
   const scrollToMessage = useCallback(
@@ -171,7 +187,7 @@ export const ChatTab: React.FC<ChatTabProps> = ({ data, onRefresh }) => {
         }, 100);
       }
     );
-    return () => showSub.remove();
+  return () => showSub.remove();
   }, []);
 
   /* ─── Fetch messages via REST ─── */
@@ -226,73 +242,104 @@ export const ChatTab: React.FC<ChatTabProps> = ({ data, onRefresh }) => {
   useEffect(() => {
     let isMounted = true;
 
+    const joinRoomChannel = (sock: Socket) => {
+      sock.emit('join_room', { roomId: room._id }, (res: any) => {
+        if (res?.success) {
+          console.log(`✅ Joined socket room channel for room ${room._id}`);
+        }
+      });
+    };
+
+    const onConnect = () => {
+      if (isMounted && socketRef.current) {
+        joinRoomChannel(socketRef.current);
+      }
+    };
+
+    const onNewMessage = (msg: ChatMessage & { clientTempId?: string }) => {
+      if (!isMounted || msg.roomId !== room._id) return;
+      setMessages((prev) => {
+        if (msg.clientTempId) {
+          const tempIdx = prev.findIndex((m) => m._id === msg.clientTempId);
+          if (tempIdx !== -1) {
+            const next = [...prev];
+            next[tempIdx] = msg;
+            return next;
+          }
+        }
+        if (prev.some((m) => m._id === msg._id)) return prev;
+        return [...prev, msg];
+      });
+    };
+
+    const onMessageDeleted = ({ messageId }: { messageId: string }) => {
+      if (!isMounted) return;
+      setMessages((prev) => prev.filter((m) => m._id !== messageId));
+      setPinnedMessages((prev) => prev.filter((m) => m._id !== messageId));
+    };
+
+    const onReactionUpdated = ({ messageId, reactions }: { messageId: string; reactions: any[] }) => {
+      if (!isMounted) return;
+      setMessages((prev) =>
+        prev.map((m) => (m._id === messageId ? { ...m, reactions } : m))
+      );
+    };
+
+    const onPinnedUpdated = ({
+      messageId,
+      isPinned,
+      message: updatedMsg,
+    }: {
+      messageId: string;
+      isPinned: boolean;
+      message: ChatMessage;
+    }) => {
+      if (!isMounted) return;
+      setMessages((prev) =>
+        prev.map((m) => (m._id === messageId ? { ...m, isPinned } : m))
+      );
+      if (isPinned && updatedMsg) {
+        setPinnedMessages((prev) => {
+          if (prev.some((p) => p._id === messageId)) return prev;
+          return [...prev, updatedMsg];
+        });
+      } else {
+        setPinnedMessages((prev) => prev.filter((p) => p._id !== messageId));
+      }
+    };
+
+    const onUserTyping = ({ userId, name, roomId }: { userId: string; name: string; roomId: string }) => {
+      if (isMounted && roomId === room._id && userId !== currentUserId) {
+        setTypingUsers((prev) => {
+          if (prev.some((u) => u.userId === userId)) return prev;
+          return [...prev, { userId, name }];
+        });
+      }
+    };
+
+    const onUserStopTyping = ({ userId, roomId: rid }: { userId: string; roomId: string }) => {
+      if (isMounted && rid === room._id) {
+        setTypingUsers((prev) => prev.filter((u) => u.userId !== userId));
+      }
+    };
+
     const initSocket = async () => {
       try {
         const sock = await connectSocket();
         if (!isMounted || !sock) return;
         socketRef.current = sock;
 
-        sock.emit('join_room', { roomId: room._id }, (res: any) => {
-          if (res?.success) {
-            console.log(`✅ Joined socket room channel for room ${room._id}`);
-          }
-        });
+        sock.on('connect', onConnect);
+        sock.on('new_message', onNewMessage);
+        sock.on('message_deleted', onMessageDeleted);
+        sock.on('message_reaction_updated', onReactionUpdated);
+        sock.on('message_pinned_updated', onPinnedUpdated);
+        sock.on('user_typing', onUserTyping);
+        sock.on('user_stop_typing', onUserStopTyping);
 
-        sock.on('new_message', (msg: ChatMessage) => {
-          if (!isMounted) return;
-          if (msg.roomId === room._id) {
-            setMessages((prev) => {
-              if (prev.some((m) => m._id === msg._id)) return prev;
-              return [...prev, msg];
-            });
-            setTimeout(() => {
-              flatListRef.current?.scrollToEnd({ animated: true });
-            }, 100);
-          }
-        });
-
-        sock.on('message_deleted', ({ messageId }: { messageId: string }) => {
-          if (!isMounted) return;
-          setMessages((prev) => prev.filter((m) => m._id !== messageId));
-          setPinnedMessages((prev) => prev.filter((m) => m._id !== messageId));
-        });
-
-        sock.on('message_reaction_updated', ({ messageId, reactions }: { messageId: string; reactions: any[] }) => {
-          if (!isMounted) return;
-          setMessages((prev) =>
-            prev.map((m) => (m._id === messageId ? { ...m, reactions } : m))
-          );
-        });
-
-        sock.on('message_pinned_updated', ({ messageId, isPinned, message: updatedMsg }: { messageId: string; isPinned: boolean; message: ChatMessage }) => {
-          if (!isMounted) return;
-          setMessages((prev) =>
-            prev.map((m) => (m._id === messageId ? { ...m, isPinned } : m))
-          );
-          if (isPinned && updatedMsg) {
-            setPinnedMessages((prev) => {
-              if (prev.some((p) => p._id === messageId)) return prev;
-              return [...prev, updatedMsg];
-            });
-          } else {
-            setPinnedMessages((prev) => prev.filter((p) => p._id !== messageId));
-          }
-        });
-
-        sock.on('user_typing', ({ userId, name, roomId }: { userId: string; name: string; roomId: string }) => {
-          if (isMounted && roomId === room._id && userId !== currentUserId) {
-            setTypingUsers((prev) => {
-              if (prev.some((u) => u.userId === userId)) return prev;
-              return [...prev, { userId, name }];
-            });
-          }
-        });
-
-        sock.on('user_stop_typing', ({ userId, roomId: rid }: { userId: string; roomId: string }) => {
-          if (isMounted && rid === room._id) {
-            setTypingUsers((prev) => prev.filter((u) => u.userId !== userId));
-          }
-        });
+        if (sock.connected) {
+          joinRoomChannel(sock);
+        }
       } catch (err) {
         console.error('Socket init error:', err);
       }
@@ -301,31 +348,57 @@ export const ChatTab: React.FC<ChatTabProps> = ({ data, onRefresh }) => {
     fetchMessages(1);
     initSocket();
 
-    return () => {
+  return () => {
       isMounted = false;
       const sock = socketRef.current;
       if (sock) {
         sock.emit('leave_room', { roomId: room._id });
-        sock.off('new_message');
-        sock.off('message_deleted');
-        sock.off('message_reaction_updated');
-        sock.off('message_pinned_updated');
-        sock.off('user_typing');
-        sock.off('user_stop_typing');
+        sock.off('connect', onConnect);
+        sock.off('new_message', onNewMessage);
+        sock.off('message_deleted', onMessageDeleted);
+        sock.off('message_reaction_updated', onReactionUpdated);
+        sock.off('message_pinned_updated', onPinnedUpdated);
+        sock.off('user_typing', onUserTyping);
+        sock.off('user_stop_typing', onUserStopTyping);
       }
     };
   }, [room._id, currentUserId, fetchMessages]);
 
-  /* ─── Send message ─── */
+  /* ─── Send message (Optimistic UI for instant rendering) ─── */
   const handleSend = useCallback(async () => {
     const text = inputText.trim();
-    if (!text || sending) return;
+    if (!text) return;
 
-    setSending(true);
+    const clientTempId = `temp_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const replyTarget = replyingTo;
+
     setInputText('');
+    if (replyTarget) {
+      setReplyingTo(null);
+    }
+
+    const currentMember = members.find((m) => m.userId?._id === currentUserId)?.userId;
+    const optimisticMsg: ChatMessage = {
+      _id: clientTempId,
+      roomId: room._id,
+      senderId: {
+        _id: currentUserId || '',
+        name: currentMember?.name || 'You',
+        avatar: currentMember?.avatar,
+      },
+      type: 'text',
+      content: text,
+      reactions: [],
+      replyTo: replyTarget || null,
+      createdAt: new Date().toISOString(),
+    };
+
+    setMessages((prev) => [...prev, optimisticMsg]);
+    requestAnimationFrame(() => {
+      flatListRef.current?.scrollToEnd({ animated: true });
+    });
 
     const sock = socketRef.current;
-
     if (isTypingRef.current && sock) {
       sock.emit('stop_typing', { roomId: room._id });
       isTypingRef.current = false;
@@ -335,30 +408,53 @@ export const ChatTab: React.FC<ChatTabProps> = ({ data, onRefresh }) => {
       roomId: room._id,
       content: text,
       type: 'text',
+      clientTempId,
     };
 
-    if (replyingTo) {
-      payload.replyTo = replyingTo._id;
-      setReplyingTo(null);
+    if (replyTarget) {
+      payload.replyTo = replyTarget._id;
     }
+
+    const reconcileMessage = (serverMsg?: ChatMessage) => {
+      if (!serverMsg) return;
+      setMessages((prev) => {
+        if (prev.some((m) => m._id === serverMsg._id)) {
+          return prev.filter((m) => m._id !== clientTempId);
+        }
+        const idx = prev.findIndex((m) => m._id === clientTempId);
+        if (idx !== -1) {
+          const next = [...prev];
+          next[idx] = serverMsg;
+          return next;
+        }
+        return [...prev, serverMsg];
+      });
+    };
 
     try {
       if (sock && sock.connected) {
-        sock.emit('send_message', payload, (res: any) => {
-          if (!res?.success) {
-            api.post(`/rooms/${room._id}/messages`, payload).catch(console.error);
+        sock.emit('send_message', payload, async (res: any) => {
+          if (res?.success && res?.message) {
+            reconcileMessage(res.message);
+          } else {
+            try {
+              const apiRes = await api.post(`/rooms/${room._id}/messages`, payload);
+              reconcileMessage(apiRes.data?.data?.message);
+            } catch (e) {
+              console.error('Fallback send error:', e);
+            }
           }
         });
       } else {
-        await api.post(`/rooms/${room._id}/messages`, payload);
+        const apiRes = await api.post(`/rooms/${room._id}/messages`, payload);
+        reconcileMessage(apiRes.data?.data?.message);
       }
     } catch (err) {
       console.error('Send message error:', err);
+      setMessages((prev) => prev.filter((m) => m._id !== clientTempId));
       Alert.alert('Error', 'Could not send message. Please try again.');
-    } finally {
-      setSending(false);
     }
-  }, [inputText, sending, room._id, replyingTo]);
+  }, [inputText, room._id, replyingTo, members, currentUserId]);
 
   /* ─── Typing indicator ─── */
   const handleTyping = useCallback(
@@ -542,17 +638,17 @@ export const ChatTab: React.FC<ChatTabProps> = ({ data, onRefresh }) => {
   );
 
   /* ─── Long Press on a message ─── */
-  const handleLongPress = (message: ChatMessage) => {
+  const handleLongPress = useCallback((message: ChatMessage) => {
     try { Vibration.vibrate(20); } catch (e) {}
     setSelectedMessage(message);
     setActionSheetVisible(true);
-  };
+  }, []);
 
   /* ─── Swipe to reply trigger ─── */
-  const handleSwipeReply = (message: ChatMessage) => {
+  const handleSwipeReply = useCallback((message: ChatMessage) => {
     setReplyingTo(message);
     inputRef.current?.focus();
-  };
+  }, []);
 
   /* ─── Delete message ─── */
   const handleDeleteMessage = useCallback((messageId: string) => {
@@ -662,7 +758,7 @@ export const ChatTab: React.FC<ChatTabProps> = ({ data, onRefresh }) => {
     if (loading) return null;
 
     if (clearedAt && messages.length > 0) {
-      return (
+    return (
         <View style={styles.emptyContainer}>
           <Text style={styles.emptyEmoji}>🧹</Text>
           <Text style={styles.emptyTitle}>Chat Cleared</Text>
@@ -681,7 +777,7 @@ export const ChatTab: React.FC<ChatTabProps> = ({ data, onRefresh }) => {
       );
     }
 
-    return (
+  return (
       <View style={styles.emptyContainer}>
         <Text style={styles.emptyEmoji}>👋</Text>
         <Text style={styles.emptyTitle}>Be the first one to say hi!</Text>
@@ -704,11 +800,31 @@ export const ChatTab: React.FC<ChatTabProps> = ({ data, onRefresh }) => {
     );
   };
 
+  const lastCountRef = useRef(0);
+
+  const renderChatItem = useCallback(
+    ({ item, index }: { item: ChatMessage; index: number }) => (
+      <ChatMessageBubble
+        item={item}
+        index={index}
+        prevItem={index > 0 ? visibleMessages[index - 1] : null}
+        currentUserId={currentUserId}
+        isHighlighted={item._id === highlightedMessageId}
+        getRoleColor={getRoleColor}
+        onSwipeReply={handleSwipeReply}
+        onLongPress={handleLongPress}
+        onReaction={handleReaction}
+        onScrollToReply={scrollToMessage}
+      />
+    ),
+    [visibleMessages, currentUserId, highlightedMessageId, getRoleColor, handleSwipeReply, handleLongPress, handleReaction, scrollToMessage]
+  );
+
   /* --- Typing Indicator --- */
   const renderTypingIndicator = () => {
     if (typingUsers.length === 0) return null;
     const names = typingUsers.map((u) => u.name.split(' ')[0]).join(', ');
-    return (
+  return (
       <View style={styles.typingContainer}>
         <View style={styles.typingDots}>
           <View style={styles.typingDot} />
@@ -722,7 +838,7 @@ export const ChatTab: React.FC<ChatTabProps> = ({ data, onRefresh }) => {
     );
   };
 
-  return (
+return (
     <View style={styles.container}>
       {/* Subtle Contour Background Watermark */}
       <View style={styles.contourWatermark} pointerEvents="none">
@@ -865,21 +981,12 @@ export const ChatTab: React.FC<ChatTabProps> = ({ data, onRefresh }) => {
           <FlatList
             ref={flatListRef}
             data={visibleMessages}
-            renderItem={({ item, index }) => (
-              <ChatMessageBubble
-                item={item}
-                index={index}
-                prevItem={index > 0 ? visibleMessages[index - 1] : null}
-                currentUserId={currentUserId}
-                isHighlighted={item._id === highlightedMessageId}
-                getRoleColor={getRoleColor}
-                onSwipeReply={handleSwipeReply}
-                onLongPress={handleLongPress}
-                onReaction={handleReaction}
-                onScrollToReply={scrollToMessage}
-              />
-            )}
+            renderItem={renderChatItem}
             keyExtractor={(item) => item._id}
+            initialNumToRender={20}
+            maxToRenderPerBatch={12}
+            windowSize={9}
+            removeClippedSubviews={Platform.OS === 'android'}
             contentContainerStyle={[
               styles.messagesList,
               visibleMessages.length === 0 && styles.messagesListEmpty,
@@ -893,9 +1000,10 @@ export const ChatTab: React.FC<ChatTabProps> = ({ data, onRefresh }) => {
               ) : null
             }
             onContentSizeChange={() => {
-              if (visibleMessages.length > 0 && !loadingMore) {
-                flatListRef.current?.scrollToEnd({ animated: false });
+              if (visibleMessages.length > lastCountRef.current && !loadingMore) {
+                flatListRef.current?.scrollToEnd({ animated: lastCountRef.current > 0 });
               }
+              lastCountRef.current = visibleMessages.length;
             }}
             onScrollToIndexFailed={(info) => {
               setTimeout(() => {

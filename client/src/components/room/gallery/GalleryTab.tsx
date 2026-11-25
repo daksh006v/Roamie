@@ -3,12 +3,12 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   RefreshControl,
   TouchableOpacity,
   ActivityIndicator,
   Vibration,
 } from 'react-native';
+import { Image as ExpoImage } from 'expo-image';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors } from '../../../constants/theme';
@@ -21,13 +21,17 @@ import { MediaViewerModal } from './MediaViewerModal';
 import { UploadMediaSheet } from './UploadMediaSheet';
 import api from '../../../services/api';
 import { connectSocket } from '../../../services/socket';
+import { getOptimizedImageUrl } from '../../../utils/imageOptimizer';
+
+const roomGalleryCache = new Map<string, MediaItem[]>();
 
 export const GalleryTab: React.FC<GalleryTabProps> = ({ data, onRefresh }) => {
   const { room, membership, members, currentUserId } = data;
   const roomId = room._id;
+  const cachedPhotos = roomGalleryCache.get(roomId);
 
-  const [photos, setPhotos] = useState<MediaItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [photos, setPhotos] = useState<MediaItem[]>(() => cachedPhotos || []);
+  const [loading, setLoading] = useState(() => !cachedPhotos);
   const [refreshing, setRefreshing] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -57,6 +61,22 @@ export const GalleryTab: React.FC<GalleryTabProps> = ({ data, onRefresh }) => {
       if (res.data?.success && res.data?.data) {
         const list: MediaItem[] = res.data.data.media || [];
         setPhotos(list);
+        roomGalleryCache.set(roomId, list);
+
+        // Prefetch first batch of thumbnails for instant grid rendering
+        const prefetchUrls = list
+          .slice(0, 12)
+          .map((p) =>
+            getOptimizedImageUrl(p.thumbnailUrl || p.storageUrl, {
+              width: 350,
+              height: 350,
+              crop: 'fill',
+            })
+          )
+          .filter(Boolean);
+        if (prefetchUrls.length > 0) {
+          ExpoImage.prefetch(prefetchUrls).catch(() => {});
+        }
       } else {
         setErrorMsg(res.data?.message || 'Could not load photos.');
       }
@@ -74,6 +94,12 @@ export const GalleryTab: React.FC<GalleryTabProps> = ({ data, onRefresh }) => {
   useEffect(() => {
     fetchPhotos();
   }, [fetchPhotos]);
+
+  useEffect(() => {
+    if (roomId && photos.length > 0) {
+      roomGalleryCache.set(roomId, photos);
+    }
+  }, [roomId, photos]);
 
   /** Real-time Socket.IO sync for new_media */
   useEffect(() => {
@@ -193,11 +219,15 @@ export const GalleryTab: React.FC<GalleryTabProps> = ({ data, onRefresh }) => {
             <Text style={styles.retryButtonText}>Retry</Text>
           </TouchableOpacity>
         </View>
+      ) : filteredPhotos.length === 0 ? (
+        <EmptyGalleryState
+          canUpload={canUpload}
+          onUploadPress={handleUploadPress}
+        />
       ) : (
-        <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
+        <GalleryGrid
+          photos={filteredPhotos}
+          onPhotoPress={handlePhotoPress}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -206,48 +236,35 @@ export const GalleryTab: React.FC<GalleryTabProps> = ({ data, onRefresh }) => {
               colors={[Colors.rooms.forestGreen]}
             />
           }
-        >
-          {filteredPhotos.length === 0 ? (
-            <EmptyGalleryState
-              canUpload={canUpload}
-              onUploadPress={handleUploadPress}
-            />
-          ) : (
-            <>
-              <LinearGradient
-                colors={['#243C32', '#315244']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.memoriesHero}
-              >
-                <View style={styles.memoriesLeft}>
-                  <View style={styles.memoriesTitleRow}>
-                    <Ionicons name="sparkles" size={15} color="#F3C178" />
-                    <Text style={styles.memoriesTitle}>Trip Memories</Text>
-                  </View>
-                  <Text style={styles.memoriesSubtitle}>
-                    {photos.length} {photos.length === 1 ? 'moment' : 'moments'} captured with {members.length} {members.length === 1 ? 'traveler' : 'travelers'}
-                  </Text>
+          ListHeaderComponent={
+            <LinearGradient
+              colors={['#243C32', '#315244']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.memoriesHero}
+            >
+              <View style={styles.memoriesLeft}>
+                <View style={styles.memoriesTitleRow}>
+                  <Ionicons name="sparkles" size={15} color="#F3C178" />
+                  <Text style={styles.memoriesTitle}>Trip Memories</Text>
                 </View>
-                {canUpload && (
-                  <TouchableOpacity
-                    style={styles.memoriesAddBtn}
-                    onPress={handleUploadPress}
-                    activeOpacity={0.85}
-                  >
-                    <Feather name="plus" size={14} color="#FFFFFF" />
-                    <Text style={styles.memoriesAddText}>Add</Text>
-                  </TouchableOpacity>
-                )}
-              </LinearGradient>
-
-              <GalleryGrid
-                photos={filteredPhotos}
-                onPhotoPress={handlePhotoPress}
-              />
-            </>
-          )}
-        </ScrollView>
+                <Text style={styles.memoriesSubtitle}>
+                  {photos.length} {photos.length === 1 ? 'moment' : 'moments'} captured with {members.length} {members.length === 1 ? 'traveler' : 'travelers'}
+                </Text>
+              </View>
+              {canUpload && (
+                <TouchableOpacity
+                  style={styles.memoriesAddBtn}
+                  onPress={handleUploadPress}
+                  activeOpacity={0.85}
+                >
+                  <Feather name="plus" size={14} color="#FFFFFF" />
+                  <Text style={styles.memoriesAddText}>Add</Text>
+                </TouchableOpacity>
+              )}
+            </LinearGradient>
+          }
+        />
       )}
 
       {/* 4. Floating Action Button (FAB) for Camera / Upload */}
@@ -291,13 +308,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.rooms.background,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    paddingTop: 10,
   },
   memoriesHero: {
     flexDirection: 'row',

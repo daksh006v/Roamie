@@ -46,4 +46,6 @@ const mediaSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+mediaSchema.index({ roomId: 1, mediaType: 1, createdAt: -1 });
+
 module.exports = mongoose.model('Media', mediaSchema);

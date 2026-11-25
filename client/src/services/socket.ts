@@ -4,6 +4,7 @@ import { Platform } from 'react-native';
 import { API_URL } from './api';
 
 let socket: Socket | null = null;
+let connectingPromise: Promise<Socket> | null = null;
 
 const getSocketUrl = (): string => {
   return API_URL.replace(/\/api\/?$/, '');
@@ -22,34 +23,51 @@ export const getAuthToken = async (): Promise<string | null> => {
 };
 
 export const connectSocket = async (): Promise<Socket> => {
-  if (socket && socket.connected) {
+  if (socket) {
+    if (!socket.connected) {
+      socket.connect();
+    }
     return socket;
   }
 
-  const token = await getAuthToken();
-  const socketUrl = getSocketUrl();
+  if (connectingPromise) {
+    return connectingPromise;
+  }
 
-  socket = io(socketUrl, {
-    auth: { token },
-    transports: ['websocket'],
-    reconnection: true,
-    reconnectionAttempts: 5,
-    reconnectionDelay: 1000,
-  });
+  connectingPromise = (async () => {
+    const token = await getAuthToken();
+    const socketUrl = getSocketUrl();
 
-  socket.on('connect', () => {
-    console.log('⚡ Socket connected to server:', socketUrl);
-  });
+    socket = io(socketUrl, {
+      auth: { token },
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 500,
+      reconnectionDelayMax: 3000,
+      timeout: 10000,
+    });
 
-  socket.on('connect_error', (err) => {
-    console.warn('⚠️ Socket connection error:', err.message);
-  });
+    socket.on('connect', () => {
+      console.log('⚡ Socket connected to server:', socketUrl);
+    });
 
-  socket.on('disconnect', (reason) => {
-    console.log('🔌 Socket disconnected:', reason);
-  });
+    socket.on('connect_error', (err) => {
+      console.warn('⚠️ Socket connection error:', err.message);
+    });
 
-  return socket;
+    socket.on('disconnect', (reason) => {
+      console.log('🔌 Socket disconnected:', reason);
+    });
+
+    return socket;
+  })();
+
+  try {
+    return await connectingPromise;
+  } finally {
+    connectingPromise = null;
+  }
 };
 
 export const getSocket = (): Socket | null => socket;

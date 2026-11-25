@@ -1,10 +1,13 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   Dimensions,
+  FlatList,
+  Platform,
+  RefreshControlProps,
 } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
 import { Colors } from '../../../constants/theme';
@@ -20,7 +23,13 @@ const TILE_SIZE = (SCREEN_WIDTH - GRID_PADDING * 2 - GAP * (NUM_COLUMNS - 1)) / 
 interface GalleryGridProps {
   photos: MediaItem[];
   onPhotoPress: (photo: MediaItem, index: number) => void;
+  ListHeaderComponent?: React.ReactElement | null;
+  refreshControl?: React.ReactElement<RefreshControlProps>;
 }
+
+type GridRow =
+  | { type: 'header'; key: string; dateLabel: string; count: number }
+  | { type: 'row'; key: string; items: { photo: MediaItem; globalIdx: number }[] };
 
 const formatDateLabel = (dateStr: string): string => {
   const d = new Date(dateStr);
@@ -57,15 +66,66 @@ const getInitials = (name?: string): string => {
     .slice(0, 2);
 };
 
+const GalleryPhotoTile = React.memo<{
+  photo: MediaItem;
+  globalIdx: number;
+  onPress: (photo: MediaItem, index: number) => void;
+}>(({ photo, globalIdx, onPress }) => {
+  const imgUrl = photo.thumbnailUrl || photo.storageUrl;
+  const optimizedUrl = getOptimizedImageUrl(imgUrl, {
+    width: 350,
+    height: 350,
+    crop: 'fill',
+  });
+  const uploaderAvatar = photo.uploadedBy?.avatar
+    ? getOptimizedImageUrl(photo.uploadedBy.avatar, { width: 80, height: 80, crop: 'fill' })
+    : '';
+
+  return (
+    <TouchableOpacity
+      style={styles.photoTile}
+      onPress={() => onPress(photo, globalIdx)}
+      activeOpacity={0.85}
+    >
+      <ExpoImage
+        source={{ uri: optimizedUrl }}
+        recyclingKey={photo._id}
+        style={styles.photoImage}
+        contentFit="cover"
+        cachePolicy="memory-disk"
+        priority={globalIdx < 9 ? 'high' : 'normal'}
+        transition={80}
+      />
+
+      {uploaderAvatar ? (
+        <ExpoImage
+          source={{ uri: uploaderAvatar }}
+          recyclingKey={`av_${photo._id}`}
+          style={styles.uploaderAvatarBadge}
+          cachePolicy="memory-disk"
+        />
+      ) : (
+        <View style={styles.uploaderBadge}>
+          <Text style={styles.uploaderBadgeText}>
+            {getInitials(photo.uploadedBy?.name)}
+          </Text>
+        </View>
+      )}
+    </TouchableOpacity>
+  );
+});
+
 export const GalleryGrid: React.FC<GalleryGridProps> = ({
   photos,
   onPhotoPress,
+  ListHeaderComponent,
+  refreshControl,
 }) => {
-  // Group photos by day (YYYY-MM-DD)
-  const groupedSections: GalleryDateGroup[] = useMemo(() => {
-    const groups: Record<string, { label: string; items: MediaItem[] }> = {};
+  // Flatten grouped date sections + 3-column rows for virtualized FlatList rendering
+  const gridRows: GridRow[] = useMemo(() => {
+    const groups: Record<string, { label: string; items: { photo: MediaItem; globalIdx: number }[] }> = {};
 
-    photos.forEach((photo) => {
+    photos.forEach((photo, globalIdx) => {
       const dateKey = photo.createdAt ? photo.createdAt.split('T')[0] : 'Unknown';
       if (!groups[dateKey]) {
         groups[dateKey] = {
@@ -73,104 +133,93 @@ export const GalleryGrid: React.FC<GalleryGridProps> = ({
           items: [],
         };
       }
-      groups[dateKey].items.push(photo);
+      groups[dateKey].items.push({ photo, globalIdx });
     });
 
-    return Object.keys(groups).map((key) => ({
-      dateKey: key,
-      dateLabel: groups[key].label,
-      items: groups[key].items,
-    }));
+    const rows: GridRow[] = [];
+    Object.keys(groups).forEach((key) => {
+      const group = groups[key];
+      rows.push({
+        type: 'header',
+        key: `hdr_${key}`,
+        dateLabel: group.label,
+        count: group.items.length,
+      });
+
+      for (let i = 0; i < group.items.length; i += NUM_COLUMNS) {
+        const chunk = group.items.slice(i, i + NUM_COLUMNS);
+        rows.push({
+          type: 'row',
+          key: `row_${key}_${i}`,
+          items: chunk,
+        });
+      }
+    });
+
+    return rows;
   }, [photos]);
 
-  // Map to get global index for lightbox paging
-  const photoIndexMap = useMemo(() => {
-    const map = new Map<string, number>();
-    photos.forEach((p, idx) => map.set(p._id, idx));
-    return map;
-  }, [photos]);
-
-  return (
-    <View style={styles.container}>
-      {groupedSections.map((group) => (
-        <View key={group.dateKey} style={styles.sectionContainer}>
-          {/* Date Header */}
+  const renderRow = useCallback(
+    ({ item }: { item: GridRow }) => {
+      if (item.type === 'header') {
+        return (
           <View style={styles.dateHeaderRow}>
             <View style={styles.dateBadge}>
-              <Text style={styles.dateHeaderText}>{group.dateLabel}</Text>
+              <Text style={styles.dateHeaderText}>{item.dateLabel}</Text>
             </View>
             <View style={styles.countBadge}>
               <Text style={styles.datePhotoCount}>
-                {group.items.length} {group.items.length === 1 ? 'photo' : 'photos'}
+                {item.count} {item.count === 1 ? 'photo' : 'photos'}
               </Text>
             </View>
           </View>
+        );
+      }
 
-          {/* Photo Tiles Grid */}
-          <View style={styles.gridRow}>
-            {group.items.map((photo) => {
-              const globalIdx = photoIndexMap.get(photo._id) ?? 0;
-              const imgUrl = photo.thumbnailUrl || photo.storageUrl;
-              const optimizedUrl = getOptimizedImageUrl(imgUrl, {
-                width: 350,
-                height: 350,
-                crop: 'fill',
-              });
-              const uploaderAvatar = photo.uploadedBy?.avatar
-                ? getOptimizedImageUrl(photo.uploadedBy.avatar, { width: 80, height: 80, crop: 'fill' })
-                : '';
-
-              return (
-                <TouchableOpacity
-                  key={photo._id}
-                  style={styles.photoTile}
-                  onPress={() => onPhotoPress(photo, globalIdx)}
-                  activeOpacity={0.85}
-                >
-                  <ExpoImage
-                    source={{ uri: optimizedUrl }}
-                    style={styles.photoImage}
-                    contentFit="cover"
-                    cachePolicy="memory-disk"
-                    transition={200}
-                  />
-
-                  {/* Uploader Avatar or Initials Badge */}
-                  {uploaderAvatar ? (
-                    <ExpoImage
-                      source={{ uri: uploaderAvatar }}
-                      style={styles.uploaderAvatarBadge}
-                      cachePolicy="memory-disk"
-                    />
-                  ) : (
-                    <View style={styles.uploaderBadge}>
-                      <Text style={styles.uploaderBadgeText}>
-                        {getInitials(photo.uploadedBy?.name)}
-                      </Text>
-                    </View>
-                  )}
-                </TouchableOpacity>
-              );
-            })}
-          </View>
+      return (
+        <View style={styles.gridRow}>
+          {item.items.map(({ photo, globalIdx }) => (
+            <GalleryPhotoTile
+              key={photo._id}
+              photo={photo}
+              globalIdx={globalIdx}
+              onPress={onPhotoPress}
+            />
+          ))}
         </View>
-      ))}
-    </View>
+      );
+    },
+    [onPhotoPress]
+  );
+
+  return (
+    <FlatList
+      data={gridRows}
+      renderItem={renderRow}
+      keyExtractor={(item) => item.key}
+      ListHeaderComponent={ListHeaderComponent}
+      refreshControl={refreshControl}
+      contentContainerStyle={styles.container}
+      showsVerticalScrollIndicator={false}
+      initialNumToRender={8}
+      maxToRenderPerBatch={6}
+      windowSize={5}
+      removeClippedSubviews={Platform.OS === 'android'}
+    />
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     paddingHorizontal: GRID_PADDING,
+    paddingTop: 10,
     paddingBottom: 90,
-  },
-  sectionContainer: {
-    marginBottom: 20,
   },
   dateHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginTop: 10,
     marginBottom: 10,
     paddingHorizontal: 2,
   },
@@ -203,8 +252,8 @@ const styles = StyleSheet.create({
   },
   gridRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: GAP,
+    marginBottom: GAP,
   },
   photoTile: {
     width: TILE_SIZE,

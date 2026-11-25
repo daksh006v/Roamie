@@ -21,7 +21,7 @@ interface ChatMessageBubbleProps {
   onScrollToReply: (messageId: string) => void;
 }
 
-export const ChatMessageBubble: React.FC<ChatMessageBubbleProps> = ({
+const ChatMessageBubbleComponent: React.FC<ChatMessageBubbleProps> = ({
   item,
   prevItem,
   currentUserId,
@@ -312,3 +312,15 @@ export const ChatMessageBubble: React.FC<ChatMessageBubbleProps> = ({
     </View>
   );
 };
+
+export const ChatMessageBubble = React.memo(ChatMessageBubbleComponent, (prev, next) => {
+  if (prev.item._id !== next.item._id) return false;
+  if (prev.isHighlighted !== next.isHighlighted) return false;
+  if (prev.item.isPinned !== next.item.isPinned) return false;
+  if (prev.item.content !== next.item.content) return false;
+  if ((prev.item.reactions?.length || 0) !== (next.item.reactions?.length || 0)) return false;
+  if (prev.item.reactions !== next.item.reactions) return false;
+  if (prev.prevItem?._id !== next.prevItem?._id) return false;
+  if (prev.currentUserId !== next.currentUserId) return false;
+  return true;
+});

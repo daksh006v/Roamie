@@ -12,8 +12,15 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Serve static uploads
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+// Serve static uploads with long-lived cache headers for fast image loading
+app.use(
+  '/uploads',
+  express.static(path.join(__dirname, '../uploads'), {
+    maxAge: '7d',
+    etag: true,
+    immutable: true,
+  })
+);
 
 // Attach Socket.IO instance to requests
 app.use((req, res, next) => {
