@@ -513,7 +513,6 @@ export const styles = StyleSheet.create({
     backgroundColor: '#FAF7F2',
     borderTopWidth: 1,
     borderTopColor: '#EDE5D8',
-    paddingBottom: Platform.OS === 'ios' ? 24 : 10,
   },
   attachCircleBtn: {
     width: 40,
