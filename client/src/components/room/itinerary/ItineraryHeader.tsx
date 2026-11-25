@@ -1,8 +1,9 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Feather, Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Image as ExpoImage } from 'expo-image';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../../../constants/theme';
 import { getOptimizedImageUrl } from '../../../utils/imageOptimizer';
 
@@ -30,22 +31,24 @@ export const ItineraryHeader: React.FC<ItineraryHeaderProps> = ({
   onRefresh,
 }) => {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const topInset = Math.max(insets.top, Platform.OS === 'ios' ? 48 : 36);
 
   return (
-    <View style={styles.topHeader}>
+    <View style={[styles.topHeader, { paddingTop: topInset }]}>
       <TouchableOpacity
         style={styles.backButton}
         onPress={() => router.back()}
         activeOpacity={0.7}
         hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
       >
-        <Feather name="chevron-left" size={26} color={Colors.rooms.darkText} />
+        <Feather name="chevron-left" size={24} color={Colors.rooms.darkText} />
       </TouchableOpacity>
 
       {/* Room Thumbnail */}
       {coverImage ? (
         <ExpoImage
-          source={{ uri: getOptimizedImageUrl(coverImage, { width: 120, height: 120, crop: 'fill' }) }}
+          source={{ uri: getOptimizedImageUrl(coverImage, { width: 100, height: 100, crop: 'fill' }) }}
           style={styles.headerThumbnail}
           cachePolicy="memory-disk"
           transition={150}
@@ -63,37 +66,23 @@ export const ItineraryHeader: React.FC<ItineraryHeaderProps> = ({
             {roomName}
           </Text>
           {isLocked && (
-            <View style={styles.lockBadge}>
-              <Feather name="lock" size={10} color="#C96A25" />
-              <Text style={styles.lockBadgeText}>Locked</Text>
-            </View>
+            <Feather name="lock" size={12} color="#C96A25" style={styles.lockIcon} />
           )}
         </View>
-
-        <View style={styles.metaRow}>
-          {destination ? (
-            <View style={styles.destPill}>
-              <Ionicons name="location" size={10} color={Colors.rooms.forestGreen} />
-              <Text style={styles.destText} numberOfLines={1}>
-                {destination}
-              </Text>
-            </View>
-          ) : null}
-          <Text style={styles.headerSubtitle} numberOfLines={1}>
-            {totalActivities} {totalActivities === 1 ? 'activity' : 'activities'} · {totalDays} {totalDays === 1 ? 'day' : 'days'}
-          </Text>
-        </View>
+        <Text style={styles.headerSubtitle} numberOfLines={1}>
+          {destination ? `${destination} · ` : ''}{totalActivities} activities · {totalDays}d
+        </Text>
       </View>
 
-      {/* Right Controls: Saved Places Shortcut & Refresh */}
+      {/* Right Controls: Places Button & Refresh */}
       <View style={styles.rightControls}>
         <TouchableOpacity
           style={styles.placesBtn}
           onPress={onOpenPlaces}
           activeOpacity={0.75}
-          hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}
+          hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
         >
-          <MaterialCommunityIcons name="map-marker-multiple" size={16} color={Colors.rooms.forestGreen} />
+          <MaterialCommunityIcons name="map-marker-multiple" size={15} color={Colors.rooms.forestGreen} />
           <Text style={styles.placesBtnText}>{placesCount}</Text>
         </TouchableOpacity>
 
@@ -102,9 +91,9 @@ export const ItineraryHeader: React.FC<ItineraryHeaderProps> = ({
             style={styles.headerIconBtn}
             onPress={onRefresh}
             activeOpacity={0.7}
-            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}
           >
-            <Feather name="rotate-cw" size={16} color={Colors.rooms.darkText} />
+            <Feather name="rotate-cw" size={15} color={Colors.rooms.darkText} />
           </TouchableOpacity>
         )}
       </View>
@@ -116,22 +105,25 @@ const styles = StyleSheet.create({
   topHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 14,
-    paddingBottom: 12,
+    paddingHorizontal: 14,
+    paddingBottom: 10,
     backgroundColor: '#FAF7F2',
     borderBottomWidth: 1,
-    borderBottomColor: '#EADBCB',
+    borderBottomColor: '#EDE5D8',
+    zIndex: 10,
   },
   backButton: {
-    marginRight: 8,
-    padding: 2,
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 4,
   },
   headerThumbnail: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    marginRight: 10,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    marginRight: 8,
   },
   headerThumbnailFallback: {
     backgroundColor: '#EAE1D3',
@@ -139,96 +131,65 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   headerThumbnailEmoji: {
-    fontSize: 18,
+    fontSize: 16,
   },
   headerTitleBlock: {
     flex: 1,
     justifyContent: 'center',
+    minWidth: 0,
+    marginRight: 8,
   },
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 4,
   },
   headerTitle: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '800',
     color: Colors.rooms.darkText,
     letterSpacing: -0.2,
     flexShrink: 1,
   },
-  lockBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    backgroundColor: '#FDEBDD',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#F5CCA0',
-  },
-  lockBadgeText: {
-    fontSize: 9.5,
-    fontWeight: '700',
-    color: '#C96A25',
-  },
-  metaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: 2,
-  },
-  destPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 2,
-    backgroundColor: '#EAE2D5',
-    paddingHorizontal: 6,
-    paddingVertical: 1.5,
-    borderRadius: 5,
-    maxWidth: 100,
-  },
-  destText: {
-    fontSize: 10.5,
-    fontWeight: '700',
-    color: Colors.rooms.forestGreen,
+  lockIcon: {
+    marginLeft: 2,
   },
   headerSubtitle: {
     fontSize: 11.5,
     color: Colors.rooms.mutedText,
+    marginTop: 1,
     fontWeight: '500',
   },
   rightControls: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginLeft: 6,
+    gap: 6,
+    flexShrink: 0,
   },
   placesBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    gap: 4,
     backgroundColor: '#EFE5D7',
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 14,
+    paddingVertical: 5,
+    paddingHorizontal: 9,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#E2D5C3',
+    borderColor: '#DFD2C2',
   },
   placesBtnText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '800',
     color: Colors.rooms.forestGreen,
   },
   headerIconBtn: {
-    width: 32,
-    height: 32,
+    width: 30,
+    height: 30,
     borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#EFE5D7',
     borderWidth: 1,
-    borderColor: '#E2D5C3',
+    borderColor: '#DFD2C2',
   },
 });
