@@ -20,6 +20,7 @@ import { RoomCard, RoomData } from '../components/rooms/RoomCard';
 import { CreateRoomCard } from '../components/rooms/CreateRoomCard';
 import { JoinRoomCard } from '../components/rooms/JoinRoomCard';
 import { JoinRoomModal } from '../components/rooms/JoinRoomModal';
+import { ProfileModal } from '../components/profile/ProfileModal';
 
 interface RoomsApiResponse {
   total: number;
@@ -45,6 +46,7 @@ export default function RoomsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [isJoinModalVisible, setIsJoinModalVisible] = useState(false);
   const [joinInitialCode, setJoinInitialCode] = useState('');
+  const [isProfileModalVisible, setIsProfileModalVisible] = useState(false);
 
   useEffect(() => {
     if (params.joinCode && params.joinCode.trim().length === 8) {
@@ -202,7 +204,7 @@ export default function RoomsScreen() {
           activeTab={activeTab}
           onTabChange={setActiveTab}
           onOpenJoinModal={() => handleOpenJoinModal('')}
-          onOpenProfile={() => router.push('/profile' as any)}
+          onOpenProfile={() => setIsProfileModalVisible(true)}
         />
 
         {/* Loading State */}
@@ -277,6 +279,12 @@ export default function RoomsScreen() {
         initialCode={joinInitialCode}
         onClose={() => setIsJoinModalVisible(false)}
         onJoined={handleJoinedRoom}
+      />
+
+      {/* Profile Modal */}
+      <ProfileModal
+        visible={isProfileModalVisible}
+        onClose={() => setIsProfileModalVisible(false)}
       />
     </SafeAreaView>
   );

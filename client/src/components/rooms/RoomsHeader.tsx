@@ -76,19 +76,24 @@ export const RoomsHeader: React.FC<RoomsHeaderProps> = ({
             </TouchableOpacity>
           )}
           <TouchableOpacity
+            style={styles.avatarButton}
             onPress={onOpenProfile}
             activeOpacity={0.75}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            accessibilityRole="button"
             accessibilityLabel="Open profile"
           >
             {userAvatar ? (
-              <ExpoImage
-                source={{ uri: getOptimizedImageUrl(userAvatar, { width: 120, height: 120, crop: 'fill' }) }}
-                style={styles.avatarImage}
-                cachePolicy="memory-disk"
-                transition={150}
-              />
+              <View pointerEvents="none">
+                <ExpoImage
+                  source={{ uri: getOptimizedImageUrl(userAvatar, { width: 120, height: 120, crop: 'fill' }) }}
+                  style={styles.avatarImage}
+                  cachePolicy="memory-disk"
+                  transition={150}
+                />
+              </View>
             ) : (
-              <View style={[styles.avatar, { backgroundColor: getInitialColor(userName) }]}>
+              <View pointerEvents="none" style={[styles.avatar, { backgroundColor: getInitialColor(userName) }]}>
                 <Text style={styles.avatarText}>{initials}</Text>
               </View>
             )}
@@ -149,6 +154,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+    zIndex: 10,
+  },
+  avatarButton: {
+    zIndex: 10,
   },
   joinPillBtn: {
     flexDirection: 'row',
