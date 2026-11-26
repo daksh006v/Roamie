@@ -18,7 +18,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image as ExpoImage } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
-import { Feather } from '@expo/vector-icons';
+import { Feather, Ionicons } from '@expo/vector-icons';
 import api from '../../../services/api';
 import { Colors, Spacing, Shadows } from '../../../constants/theme';
 import { RoomDetailsData } from '../../../types/room';
@@ -516,7 +516,7 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
                   <View style={styles.sheetGrabber} />
                   <View style={styles.sheetHeaderRow}>
                     <View style={styles.heroIconSquare}>
-                      <Text style={{ fontSize: 30 }}>💰</Text>
+                      <Ionicons name="wallet-outline" size={28} color="#243C32" />
                     </View>
                     <View style={{ flex: 1, marginLeft: 14 }}>
                       <Text style={styles.sheetTitleBig}>Add Expense</Text>
@@ -671,7 +671,7 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
                             onPress={() => removeTagFromDraft(t)}
                             style={[styles.tagChip, { backgroundColor: cfg.pillBg }]}
                           >
-                            <Text style={{ fontSize: 13 }}>{cfg.emoji}</Text>
+                            <Ionicons name={cfg.icon} size={13} color={cfg.textColor} />
                             <Text style={[styles.tagChipText, { color: cfg.textColor }]}>#{t}</Text>
                             <Feather name="x" size={12} color={cfg.textColor} style={{ marginLeft: 2, opacity: 0.65 }} />
                           </TouchableOpacity>
@@ -1110,7 +1110,7 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
                       activeOpacity={0.8}
                       onPress={() => togglePickerTag(p.key)}
                     >
-                      <Text style={{ fontSize: 14 }}>{p.emoji}</Text>
+                      <Ionicons name={p.icon} size={14} color={p.textColor} />
                       <Text
                         style={[
                           styles.gridTagText,

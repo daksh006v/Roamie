@@ -112,7 +112,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               
               <View style={styles.headerRow}>
                 <Text style={styles.modalTitle}>
-                  {mode === 'login' ? 'Welcome Back 👋' : 'Join Roamie 🗺️'}
+                  {mode === 'login' ? 'Welcome Back' : 'Join Roamie'}
                 </Text>
                 <TouchableOpacity
                   onPress={onClose}

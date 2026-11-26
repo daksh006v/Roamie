@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Feather, Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Colors } from '../../../constants/theme';
 
 interface EmptyItineraryStateProps {
@@ -60,15 +60,15 @@ export const EmptyItineraryState: React.FC<EmptyItineraryStateProps> = ({
       <View style={styles.ideasCard}>
         <Text style={styles.ideasTitle}>Quick Inspiration:</Text>
         <View style={styles.ideaItem}>
-          <Text style={styles.ideaEmoji}>🏖️</Text>
+          <Feather name="home" size={16} color="#243C32" />
           <Text style={styles.ideaText}>Pin the group's accommodation or villa address</Text>
         </View>
         <View style={styles.ideaItem}>
-          <Text style={styles.ideaEmoji}>🍽️</Text>
+          <Feather name="coffee" size={16} color="#C96A25" />
           <Text style={styles.ideaText}>Search and save your favorite dinner spots</Text>
         </View>
         <View style={styles.ideaItem}>
-          <Text style={styles.ideaEmoji}>🎯</Text>
+          <Feather name="bell" size={16} color="#435E7A" />
           <Text style={styles.ideaText}>Schedule activities with automatic push reminders</Text>
         </View>
       </View>

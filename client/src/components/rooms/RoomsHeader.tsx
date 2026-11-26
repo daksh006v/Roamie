@@ -8,6 +8,7 @@ import {
   Image,
 } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
+import { Feather } from '@expo/vector-icons';
 import { Colors } from '../../constants/theme';
 import { getOptimizedImageUrl } from '../../utils/imageOptimizer';
 
@@ -71,7 +72,7 @@ export const RoomsHeader: React.FC<RoomsHeaderProps> = ({
               onPress={onOpenJoinModal}
               activeOpacity={0.75}
             >
-              <Text style={styles.joinPillIcon}>🔑</Text>
+              <Feather name="key" size={14} color={Colors.rooms.burntOrange} />
               <Text style={styles.joinPillText}>Join</Text>
             </TouchableOpacity>
           )}

@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
 import { useRouter } from 'expo-router';
-import { Feather } from '@expo/vector-icons';
+import { Feather, Ionicons } from '@expo/vector-icons';
 
 import { Colors, Spacing, Shadows } from '../../constants/theme';
 import { RoomDetailsData } from '../../types/room';
@@ -480,7 +480,7 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({ data, onRefresh }) => 
             />
           ) : (
             <View style={[styles.headerThumbnail, styles.headerThumbnailFallback]}>
-              <Text style={styles.headerThumbnailEmoji}>🏝️</Text>
+              <Feather name="compass" size={18} color="#243C32" />
             </View>
           )}
 
@@ -598,7 +598,9 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({ data, onRefresh }) => 
 
             {recentExpenses.length === 0 ? (
               <View style={styles.emptyBlock}>
-                <Text style={styles.emptyEmoji}>💸</Text>
+                <View style={{ width: 48, height: 48, borderRadius: 16, backgroundColor: '#EAF1E8', alignItems: 'center', justifyContent: 'center', marginBottom: 10 }}>
+                  <Ionicons name="wallet-outline" size={24} color="#243C32" />
+                </View>
                 <Text style={styles.emptyTitle}>No expenses yet</Text>
                 <Text style={styles.emptySubtitle}>
                   Tap the + button below to add your first expense.
@@ -638,7 +640,7 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({ data, onRefresh }) => 
                         { backgroundColor: tagIcon.bgColor },
                       ]}
                     >
-                      <Text style={styles.expenseIconText}>{tagIcon.emoji}</Text>
+                      <Ionicons name={tagIcon.icon} size={20} color={tagIcon.textColor} />
                     </View>
 
                     <View style={styles.expenseBody}>
@@ -705,7 +707,7 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({ data, onRefresh }) => 
                                     { backgroundColor: cfg.pillBg },
                                   ]}
                                 >
-                                  <Text style={{ fontSize: 10.5, marginRight: 2 }}>{cfg.emoji}</Text>
+                                  <Ionicons name={cfg.icon} size={11} color={cfg.textColor} style={{ marginRight: 3 }} />
                                   <Text style={[styles.tagText, { color: cfg.textColor }]}>#{tag}</Text>
                                 </View>
                               );
@@ -764,7 +766,9 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({ data, onRefresh }) => 
 
             {mySettlements.length === 0 ? (
               <View style={styles.emptyBlockSmall}>
-                <Text style={styles.emptyEmojiSmall}>🤝</Text>
+                <View style={{ width: 40, height: 40, borderRadius: 14, backgroundColor: '#EAF1E8', alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
+                  <Feather name="check-circle" size={20} color="#243C32" />
+                </View>
                 <Text style={styles.emptyTitleSmall}>All settled up</Text>
                 <Text style={styles.emptySubtitleSmall}>
                   You don't owe anyone and no one owes you right now.

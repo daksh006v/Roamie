@@ -13,7 +13,7 @@ import {
   Alert,
   Keyboard,
 } from 'react-native';
-import { Feather } from '@expo/vector-icons';
+import { Feather, Ionicons } from '@expo/vector-icons';
 import { Image as ExpoImage } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 
@@ -342,7 +342,7 @@ export const ExpenseDetailsModal: React.FC<ExpenseDetailsModalProps> = ({
         throw new Error(res.data?.message || 'Backend PUT endpoint not available yet');
       }
       setIsEditing(false);
-      Alert.alert('Updated ✅', 'Expense changes have been saved.');
+      Alert.alert('Updated', 'Expense changes have been saved.');
       onExpenseChanged?.();
       fetchDetails();
     } catch (e: any) {
@@ -687,12 +687,12 @@ export const ExpenseDetailsModal: React.FC<ExpenseDetailsModalProps> = ({
 
           {loading ? (
             <View style={styles.centerState}>
-              <Text style={styles.loadingDot}>⏳</Text>
+              <Feather name="loader" size={26} color="#243C32" style={{ marginBottom: 8 }} />
               <Text style={styles.centerText}>Loading expense details...</Text>
             </View>
           ) : !details ? (
             <View style={styles.centerState}>
-              <Text style={styles.emptyEmoji}>📋</Text>
+              <Feather name="file-text" size={32} color="#8C867A" style={{ marginBottom: 8 }} />
               <Text style={styles.centerText}>Could not load this expense.</Text>
             </View>
           ) : (
@@ -709,7 +709,7 @@ export const ExpenseDetailsModal: React.FC<ExpenseDetailsModalProps> = ({
                   <View style={styles.heroSummaryCard}>
                   <View style={styles.heroRow1}>
                     <View style={[styles.heroIconPill, { backgroundColor: iconInfo.bgColor }]}>
-                      <Text style={styles.heroIconEmoji}>{iconInfo.emoji}</Text>
+                      <Ionicons name={iconInfo.icon} size={24} color={iconInfo.textColor} />
                     </View>
                     <View style={{ flex: 1, marginLeft: 12 }}>
                       {isEditing ? (
@@ -838,7 +838,7 @@ export const ExpenseDetailsModal: React.FC<ExpenseDetailsModalProps> = ({
                                   : { backgroundColor: '#F5F0E6', borderColor: '#E2D7C8', borderWidth: 1 },
                               ]}
                             >
-                              <Text style={{ fontSize: 13 }}>{p.emoji}</Text>
+                              <Ionicons name={p.icon} size={13} color={selected ? p.textColor : '#59615A'} />
                               <Text
                                 style={[
                                   styles.tagEditChipText,

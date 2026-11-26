@@ -33,13 +33,13 @@ interface PlacesListModalProps {
 
 const CATEGORY_FILTERS = [
   { key: 'all', label: 'All' },
-  { key: 'food', label: '🍽️ Dining' },
-  { key: 'beach', label: '🏖️ Beach' },
-  { key: 'stay', label: '🏨 Stay' },
-  { key: 'sights', label: '🏛️ Sights' },
-  { key: 'nightlife', label: '🍸 Nightlife' },
-  { key: 'activity', label: '🎯 Adventure' },
-  { key: 'other', label: '📍 Other' },
+  { key: 'food', label: 'Dining' },
+  { key: 'beach', label: 'Beach' },
+  { key: 'stay', label: 'Stay' },
+  { key: 'sights', label: 'Sights' },
+  { key: 'nightlife', label: 'Nightlife' },
+  { key: 'activity', label: 'Adventure' },
+  { key: 'other', label: 'Other' },
 ];
 
 const getCategoryStyle = (category?: string) => {

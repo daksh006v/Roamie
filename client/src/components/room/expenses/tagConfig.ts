@@ -1,7 +1,12 @@
+import React from 'react';
+import { Ionicons } from '@expo/vector-icons';
+
+export type TagIconName = React.ComponentProps<typeof Ionicons>['name'];
+
 export interface TagConfig {
   key: string;
   label: string;
-  emoji: string;
+  icon: TagIconName;
   category: string;
   bgColor: string;
   textColor: string;
@@ -11,8 +16,8 @@ export interface TagConfig {
 export const TAG_PRESETS: TagConfig[] = [
   {
     key: 'general',
-    label: 'general',
-    emoji: '🧾',
+    label: 'General',
+    icon: 'receipt-outline',
     category: 'other',
     bgColor: '#EFF0EA',
     textColor: '#3D5A4A',
@@ -20,8 +25,8 @@ export const TAG_PRESETS: TagConfig[] = [
   },
   {
     key: 'food',
-    label: 'food',
-    emoji: '🍽️',
+    label: 'Food',
+    icon: 'restaurant-outline',
     category: 'food',
     bgColor: '#FAF1E5',
     textColor: '#B65919',
@@ -29,8 +34,8 @@ export const TAG_PRESETS: TagConfig[] = [
   },
   {
     key: 'dinner',
-    label: 'dinner',
-    emoji: '🌮',
+    label: 'Dinner',
+    icon: 'moon-outline',
     category: 'food',
     bgColor: '#FEF3E7',
     textColor: '#C96A25',
@@ -38,8 +43,8 @@ export const TAG_PRESETS: TagConfig[] = [
   },
   {
     key: 'lunch',
-    label: 'lunch',
-    emoji: '🥗',
+    label: 'Lunch',
+    icon: 'sunny-outline',
     category: 'food',
     bgColor: '#FEF3E7',
     textColor: '#C96A25',
@@ -47,170 +52,8 @@ export const TAG_PRESETS: TagConfig[] = [
   },
   {
     key: 'breakfast',
-    label: 'breakfast',
-    emoji: '🥐',
-    category: 'food',
-    bgColor: '#FEF3E7',
-    textColor: '#C96A25',
-    pillBg: '#FDEBD0',
-  },
-  {
-    key: 'restaurant',
-    label: 'restaurant',
-    emoji: '🍛',
-    category: 'food',
-    bgColor: '#FEF3E7',
-    textColor: '#B65919',
-    pillBg: '#FDEBD0',
-  },
-  {
-    key: 'snacks',
-    label: 'snacks',
-    emoji: '🍿',
-    category: 'food',
-    bgColor: '#FEF3E7',
-    textColor: '#B65919',
-    pillBg: '#FDEBD0',
-  },
-  {
-    key: 'stay',
-    label: 'stay',
-    emoji: '🏨',
-    category: 'stay',
-    bgColor: '#EAF1EA',
-    textColor: '#4E7A52',
-    pillBg: '#D4E6D6',
-  },
-  {
-    key: 'hotel',
-    label: 'hotel',
-    emoji: '🛖',
-    category: 'stay',
-    bgColor: '#EAF1EA',
-    textColor: '#4E7A52',
-    pillBg: '#D4E6D6',
-  },
-  {
-    key: 'booking',
-    label: 'booking',
-    emoji: '🛏️',
-    category: 'stay',
-    bgColor: '#EAF1EA',
-    textColor: '#4E7A52',
-    pillBg: '#D4E6D6',
-  },
-  {
-    key: 'resort',
-    label: 'resort',
-    emoji: '🏝️',
-    category: 'stay',
-    bgColor: '#EAF1EA',
-    textColor: '#4E7A52',
-    pillBg: '#D4E6D6',
-  },
-  {
-    key: 'transport',
-    label: 'transport',
-    emoji: '🚕',
-    category: 'travel',
-    bgColor: '#FBE9E2',
-    textColor: '#B7602C',
-    pillBg: '#F7D4C4',
-  },
-  {
-    key: 'travel',
-    label: 'travel',
-    emoji: '🚗',
-    category: 'travel',
-    bgColor: '#FBE9E2',
-    textColor: '#B7602C',
-    pillBg: '#F7D4C4',
-  },
-  {
-    key: 'cab',
-    label: 'cab',
-    emoji: '🚖',
-    category: 'travel',
-    bgColor: '#FBE9E2',
-    textColor: '#B7602C',
-    pillBg: '#F7D4C4',
-  },
-  {
-    key: 'fuel',
-    label: 'fuel',
-    emoji: '⛽',
-    category: 'travel',
-    bgColor: '#FBE9E2',
-    textColor: '#B7602C',
-    pillBg: '#F7D4C4',
-  },
-  {
-    key: 'train',
-    label: 'train',
-    emoji: '🚆',
-    category: 'travel',
-    bgColor: '#FBE9E2',
-    textColor: '#B7602C',
-    pillBg: '#F7D4C4',
-  },
-  {
-    key: 'flight',
-    label: 'flight',
-    emoji: '✈️',
-    category: 'travel',
-    bgColor: '#FBE9E2',
-    textColor: '#B7602C',
-    pillBg: '#F7D4C4',
-  },
-  {
-    key: 'tickets',
-    label: 'tickets',
-    emoji: '🎟️',
-    category: 'activities',
-    bgColor: '#E7EDF3',
-    textColor: '#435E7A',
-    pillBg: '#CFDCEA',
-  },
-  {
-    key: 'activity',
-    label: 'activity',
-    emoji: '🎯',
-    category: 'activities',
-    bgColor: '#E7EDF3',
-    textColor: '#435E7A',
-    pillBg: '#CFDCEA',
-  },
-  {
-    key: 'activities',
-    label: 'activities',
-    emoji: '🏄',
-    category: 'activities',
-    bgColor: '#E7EDF3',
-    textColor: '#435E7A',
-    pillBg: '#CFDCEA',
-  },
-  {
-    key: 'waterpark',
-    label: 'waterpark',
-    emoji: '💦',
-    category: 'activities',
-    bgColor: '#E7EDF3',
-    textColor: '#435E7A',
-    pillBg: '#CFDCEA',
-  },
-  {
-    key: 'tour',
-    label: 'tour',
-    emoji: '🧭',
-    category: 'activities',
-    bgColor: '#E7EDF3',
-    textColor: '#435E7A',
-    pillBg: '#CFDCEA',
-  },
-  {
-    key: 'drinks',
-    label: 'drinks',
-    emoji: '🍻',
+    label: 'Breakfast',
+    icon: 'partly-sunny-outline',
     category: 'food',
     bgColor: '#FEF3E7',
     textColor: '#C96A25',
@@ -218,26 +61,125 @@ export const TAG_PRESETS: TagConfig[] = [
   },
   {
     key: 'coffee',
-    label: 'coffee',
-    emoji: '☕',
+    label: 'Coffee',
+    icon: 'cafe-outline',
     category: 'food',
     bgColor: '#FEF3E7',
     textColor: '#C96A25',
     pillBg: '#FDEBD0',
   },
   {
-    key: 'dessert',
-    label: 'dessert',
-    emoji: '🍧',
+    key: 'drinks',
+    label: 'Drinks',
+    icon: 'wine-outline',
     category: 'food',
     bgColor: '#FEF3E7',
     textColor: '#C96A25',
     pillBg: '#FDEBD0',
+  },
+  {
+    key: 'snacks',
+    label: 'Snacks',
+    icon: 'fast-food-outline',
+    category: 'food',
+    bgColor: '#FEF3E7',
+    textColor: '#B65919',
+    pillBg: '#FDEBD0',
+  },
+  {
+    key: 'stay',
+    label: 'Stay',
+    icon: 'home-outline',
+    category: 'stay',
+    bgColor: '#EAF1EA',
+    textColor: '#4E7A52',
+    pillBg: '#D4E6D6',
+  },
+  {
+    key: 'hotel',
+    label: 'Hotel',
+    icon: 'bed-outline',
+    category: 'stay',
+    bgColor: '#EAF1EA',
+    textColor: '#4E7A52',
+    pillBg: '#D4E6D6',
+  },
+  {
+    key: 'transport',
+    label: 'Transport',
+    icon: 'car-outline',
+    category: 'travel',
+    bgColor: '#FBE9E2',
+    textColor: '#B7602C',
+    pillBg: '#F7D4C4',
+  },
+  {
+    key: 'cab',
+    label: 'Cab',
+    icon: 'car-sport-outline',
+    category: 'travel',
+    bgColor: '#FBE9E2',
+    textColor: '#B7602C',
+    pillBg: '#F7D4C4',
+  },
+  {
+    key: 'fuel',
+    label: 'Fuel',
+    icon: 'flash-outline',
+    category: 'travel',
+    bgColor: '#FBE9E2',
+    textColor: '#B7602C',
+    pillBg: '#F7D4C4',
+  },
+  {
+    key: 'train',
+    label: 'Train',
+    icon: 'train-outline',
+    category: 'travel',
+    bgColor: '#FBE9E2',
+    textColor: '#B7602C',
+    pillBg: '#F7D4C4',
+  },
+  {
+    key: 'flight',
+    label: 'Flight',
+    icon: 'airplane-outline',
+    category: 'travel',
+    bgColor: '#FBE9E2',
+    textColor: '#B7602C',
+    pillBg: '#F7D4C4',
+  },
+  {
+    key: 'tickets',
+    label: 'Tickets',
+    icon: 'ticket-outline',
+    category: 'activities',
+    bgColor: '#E7EDF3',
+    textColor: '#435E7A',
+    pillBg: '#CFDCEA',
+  },
+  {
+    key: 'activity',
+    label: 'Activity',
+    icon: 'compass-outline',
+    category: 'activities',
+    bgColor: '#E7EDF3',
+    textColor: '#435E7A',
+    pillBg: '#CFDCEA',
+  },
+  {
+    key: 'tour',
+    label: 'Tour',
+    icon: 'map-outline',
+    category: 'activities',
+    bgColor: '#E7EDF3',
+    textColor: '#435E7A',
+    pillBg: '#CFDCEA',
   },
   {
     key: 'shopping',
-    label: 'shopping',
-    emoji: '🛍️',
+    label: 'Shopping',
+    icon: 'bag-handle-outline',
     category: 'shopping',
     bgColor: '#F9E8EF',
     textColor: '#B6487B',
@@ -245,26 +187,26 @@ export const TAG_PRESETS: TagConfig[] = [
   },
   {
     key: 'souvenirs',
-    label: 'souvenirs',
-    emoji: '🎁',
+    label: 'Souvenirs',
+    icon: 'gift-outline',
     category: 'shopping',
     bgColor: '#F9E8EF',
     textColor: '#B6487B',
     pillBg: '#F2D1E0',
   },
   {
-    key: 'goa',
-    label: 'goa',
-    emoji: '🌊',
-    category: 'activities',
-    bgColor: '#E7EDF3',
-    textColor: '#435E7A',
-    pillBg: '#CFDCEA',
+    key: 'medical',
+    label: 'Medical',
+    icon: 'medkit-outline',
+    category: 'other',
+    bgColor: '#FCEAEA',
+    textColor: '#B91C1C',
+    pillBg: '#F9D2D2',
   },
   {
     key: 'group',
-    label: 'group',
-    emoji: '👥',
+    label: 'Group',
+    icon: 'people-outline',
     category: 'other',
     bgColor: '#EFF0EA',
     textColor: '#3D5A4A',
@@ -295,38 +237,43 @@ export const tagToCategory = (tags: string[]): string => {
   return bestCat;
 };
 
-export const getCategoryConfig = (category: string): { emoji: string; label: string; bgColor: string; textColor: string; pillBg: string } => {
+export const getCategoryConfig = (
+  category: string
+): { icon: TagIconName; label: string; bgColor: string; textColor: string; pillBg: string } => {
   const keyMap: Record<string, string> = {
     food: 'food',
     stay: 'stay',
     travel: 'transport',
-    activities: 'activities',
+    activities: 'activity',
     shopping: 'shopping',
     other: 'general',
   };
   const cfg = getTagConfig(keyMap[category] || 'general');
   return {
-    emoji: cfg.emoji,
-    label: cfg.key.charAt(0).toUpperCase() + cfg.key.slice(1),
+    icon: cfg.icon,
+    label: cfg.label,
     bgColor: cfg.bgColor,
     textColor: cfg.textColor,
     pillBg: cfg.pillBg,
   };
 };
 
-export const CATEGORY_OPTIONS: { key: string; label: string; emoji: string }[] = [
-  { key: 'food', label: 'Food', emoji: '🍽️' },
-  { key: 'stay', label: 'Stay', emoji: '🏨' },
-  { key: 'travel', label: 'Transport', emoji: '🚗' },
-  { key: 'activities', label: 'Activities', emoji: '🎯' },
-  { key: 'shopping', label: 'Shopping', emoji: '🛍️' },
-  { key: 'other', label: 'Other', emoji: '🧾' },
+export const CATEGORY_OPTIONS: { key: string; label: string; icon: TagIconName }[] = [
+  { key: 'food', label: 'Food', icon: 'restaurant-outline' },
+  { key: 'stay', label: 'Stay', icon: 'home-outline' },
+  { key: 'travel', label: 'Transport', icon: 'car-outline' },
+  { key: 'activities', label: 'Activities', icon: 'compass-outline' },
+  { key: 'shopping', label: 'Shopping', icon: 'bag-handle-outline' },
+  { key: 'other', label: 'Other', icon: 'receipt-outline' },
 ];
 
-export const getIconForTags = (tags: string[] | undefined, paidBy?: any): { emoji: string; bgColor: string; textColor: string } => {
+export const getIconForTags = (
+  tags: string[] | undefined,
+  _paidBy?: any
+): { icon: TagIconName; bgColor: string; textColor: string } => {
   if (tags && tags.length > 0) {
     const cfg = getTagConfig(tags[0]);
-    return { emoji: cfg.emoji, bgColor: cfg.bgColor, textColor: cfg.textColor };
+    return { icon: cfg.icon, bgColor: cfg.bgColor, textColor: cfg.textColor };
   }
-  return { emoji: '🧾', bgColor: '#EFF0EA', textColor: '#3D5A4A' };
+  return { icon: 'receipt-outline', bgColor: '#EFF0EA', textColor: '#3D5A4A' };
 };

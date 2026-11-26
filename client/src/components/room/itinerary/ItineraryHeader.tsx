@@ -55,7 +55,7 @@ export const ItineraryHeader: React.FC<ItineraryHeaderProps> = ({
         />
       ) : (
         <View style={[styles.headerThumbnail, styles.headerThumbnailFallback]}>
-          <Text style={styles.headerThumbnailEmoji}>🗓️</Text>
+          <Feather name="calendar" size={18} color="#243C32" />
         </View>
       )}
 

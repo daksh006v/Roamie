@@ -761,7 +761,9 @@ export const ChatTab: React.FC<ChatTabProps> = ({ data, onRefresh }) => {
     if (clearedAt && messages.length > 0) {
     return (
         <View style={styles.emptyContainer}>
-          <Text style={styles.emptyEmoji}>🧹</Text>
+          <View style={{ width: 52, height: 52, borderRadius: 18, backgroundColor: '#EAF1E8', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+            <Feather name="trash-2" size={24} color="#243C32" />
+          </View>
           <Text style={styles.emptyTitle}>Chat Cleared</Text>
           <Text style={styles.emptySubtitle}>
             You cleared this chat on this device. Messages remain intact for other members.
@@ -780,13 +782,15 @@ export const ChatTab: React.FC<ChatTabProps> = ({ data, onRefresh }) => {
 
   return (
       <View style={styles.emptyContainer}>
-        <Text style={styles.emptyEmoji}>👋</Text>
+        <View style={{ width: 52, height: 52, borderRadius: 18, backgroundColor: '#EAF1E8', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+          <Feather name="message-circle" size={24} color="#243C32" />
+        </View>
         <Text style={styles.emptyTitle}>Be the first one to say hi!</Text>
         <Text style={styles.emptySubtitle}>
           Start a conversation with your travel buddies in {room.name}.
         </Text>
         <View style={styles.quickPrompts}>
-          {['Hey everyone! 🎉', "Who's excited?! ✈️", "Let's plan this! 🗺️"].map((prompt) => (
+          {['Hey everyone!', "Who's excited?!", "Let's plan this!"].map((prompt) => (
             <TouchableOpacity
               key={prompt}
               style={styles.quickPromptChip}
@@ -895,7 +899,7 @@ return (
           />
         ) : (
           <View style={[styles.headerThumbnail, styles.headerThumbnailFallback]}>
-            <Text style={styles.headerThumbnailEmoji}>🏝️</Text>
+            <Feather name="compass" size={18} color="#243C32" />
           </View>
         )}
 
@@ -947,7 +951,7 @@ return (
           }}
         >
           <View style={styles.nextUpContent}>
-            <Text style={styles.nextUpPinIcon}>📌</Text>
+            <Feather name="bookmark" size={14} color="#C96A25" style={{ marginRight: 6 }} />
             <Text style={styles.nextUpText} numberOfLines={1}>
               <Text style={styles.nextUpBold}>
                 {pinnedMessages[pinnedBannerIndex]?.senderId?.name || 'Member'}
@@ -955,7 +959,7 @@ return (
               {': '}
               {pinnedMessages[pinnedBannerIndex]?.content ||
                 pinnedMessages[pinnedBannerIndex]?.text ||
-                (pinnedMessages[pinnedBannerIndex]?.media?.url ? '📸 Photo' : 'Pinned message')}
+                (pinnedMessages[pinnedBannerIndex]?.media?.url ? 'Photo' : 'Pinned message')}
             </Text>
           </View>
           <View style={styles.pinnedCountBadge}>

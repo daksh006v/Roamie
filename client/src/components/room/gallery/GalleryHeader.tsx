@@ -47,7 +47,7 @@ export const GalleryHeader: React.FC<GalleryHeaderProps> = ({
         />
       ) : (
         <View style={[styles.headerThumbnail, styles.headerThumbnailFallback]}>
-          <Text style={styles.headerThumbnailEmoji}>📸</Text>
+          <Feather name="camera" size={18} color="#243C32" />
         </View>
       )}
 
