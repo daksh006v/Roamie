@@ -192,12 +192,21 @@ export interface BalanceBreakdownItem {
   status: 'owed' | 'owes' | 'settled';
 }
 
+export interface SettledHistoryRow {
+  _id: string;
+  from: SettlementUser;
+  to: SettlementUser;
+  amount: number;
+  settledAt?: string;
+}
+
 export interface BalancesResponse {
   totalSpent: number;
   currentUserNet: number;
   currentUserStatus: 'owed' | 'owes' | 'settled';
   breakdown: BalanceBreakdownItem[];
   settlements: SettlementRow[];
+  settledHistory?: SettledHistoryRow[];
 }
 
 export interface ExpensesResponse {
@@ -485,12 +494,12 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({ data, onRefresh }) => 
             <View style={styles.summaryHeaderRow}>
               <View style={styles.summaryAmountBlock}>
                 <Text style={styles.summaryAmountSpent}>
-                  {formatCurrency(totalSpent)}
-                  <Text style={styles.summarySpentLabel}> spent</Text>
+                  {formatCurrency(userShare)}
+                  <Text style={styles.summarySpentLabel}> your expense</Text>
                 </Text>
                 {budgetAmount > 0 && (
                   <Text style={styles.summaryBudgetText}>
-                    of {formatCurrency(budgetAmount)} budget
+                    Trip total {formatCurrency(totalSpent)} of {formatCurrency(budgetAmount)} budget
                   </Text>
                 )}
               </View>
@@ -511,7 +520,7 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({ data, onRefresh }) => 
               <>
                 <View style={styles.budgetPercentRow}>
                   <Text style={styles.budgetPercentText}>
-                    {budgetUsedPercent.toFixed(1)}% used
+                    {budgetUsedPercent.toFixed(1)}% of trip budget used
                   </Text>
                 </View>
                 <View style={styles.progressBarTrack}>
@@ -537,12 +546,21 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({ data, onRefresh }) => 
             )}
 
             {!budgetAmount && (
-              <Text style={styles.summaryBudgetText}>Total spent</Text>
+              <Text style={styles.summaryBudgetText}>Your share of the trip</Text>
             )}
             <View style={styles.personalSummaryRow}>
-              <View><Text style={styles.personalSummaryLabel}>You paid</Text><Text style={styles.personalSummaryValue}>{formatCurrency(userPaid)}</Text></View>
-              <View><Text style={styles.personalSummaryLabel}>Your share</Text><Text style={styles.personalSummaryValue}>{formatCurrency(userShare)}</Text></View>
-              <View><Text style={styles.personalSummaryLabel}>{userImpactLabel}</Text><Text style={styles.personalSummaryValue}>{formatCurrency(userRemaining)}</Text></View>
+              <View>
+                <Text style={styles.personalSummaryLabel}>You paid</Text>
+                <Text style={styles.personalSummaryValue}>{formatCurrency(userPaid)}</Text>
+              </View>
+              <View>
+                <Text style={styles.personalSummaryLabel}>{userImpactLabel}</Text>
+                <Text style={styles.personalSummaryValue}>{formatCurrency(userRemaining)}</Text>
+              </View>
+              <View>
+                <Text style={styles.personalSummaryLabel}>Total trip</Text>
+                <Text style={styles.personalSummaryValue}>{formatCurrency(totalSpent)}</Text>
+              </View>
             </View>
           </View>
 
@@ -842,8 +860,10 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({ data, onRefresh }) => 
         expenses={expensesData?.expenses || []}
         breakdown={balancesData?.breakdown || []}
         settlements={balancesData?.settlements || []}
+        settledHistory={balancesData?.settledHistory || []}
         currentUserId={currentUserId}
-        isOwner={membership?.role === 'owner'}
+        userShare={userShare}
+        userPaid={userPaid}
         onClose={() => setShowAllExpenses(false)}
         onExpensePress={(expense) => {
           setShowAllExpenses(false);

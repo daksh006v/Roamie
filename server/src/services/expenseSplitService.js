@@ -118,12 +118,21 @@ const calculateRoomBalances = async (roomId, currentUserId) => {
     if (creditor.amount <= 0.01) cIdx++;
   }
 
+  const settledHistory = settledRecords.map((s) => ({
+    _id: s._id,
+    from: memberMap[s.fromUser.toString()] || { _id: s.fromUser.toString(), name: 'Member' },
+    to: memberMap[s.toUser.toString()] || { _id: s.toUser.toString(), name: 'Member' },
+    amount: Math.round(s.amount * 100) / 100,
+    settledAt: s.settledAt || s.createdAt,
+  }));
+
   return {
     totalSpent: Math.round(totalSpent * 100) / 100,
     currentUserNet: Math.round(currentUserNet * 100) / 100,
     currentUserStatus: currentUserNet > 0 ? 'owed' : currentUserNet < 0 ? 'owes' : 'settled',
     breakdown,
     settlements,
+    settledHistory,
   };
 };
 
