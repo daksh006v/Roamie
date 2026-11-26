@@ -63,6 +63,19 @@ const ChatMessageBubbleComponent: React.FC<ChatMessageBubbleProps> = ({
   if (item.type === 'system' || item.messageType === 'system') {
     const sysText = (item.content || item.text || item.systemAction || '').trim();
     if (!sysText) return null;
+
+    // Hide noisy non-membership activity messages (expenses, gallery uploads, itinerary locks)
+    const lower = sysText.toLowerCase();
+    if (
+      lower.includes('added an expense') ||
+      lower.includes('settled ₹') ||
+      lower.includes('to the gallery') ||
+      lower.includes('locked the itinerary') ||
+      lower.includes('unlocked the itinerary')
+    ) {
+      return null;
+    }
+
     return (
       <View key={item._id}>
         {showDate && renderDateSeparator(formatDateSeparator(item.createdAt))}

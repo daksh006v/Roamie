@@ -3,6 +3,7 @@ const Room = require('../models/Room');
 const Place = require('../models/Place');
 const RoomMember = require('../models/RoomMember');
 const User = require('../models/User');
+const Notification = require('../models/Notification');
 const { sendPushNotifications } = require('../services/pushNotificationService');
 const { sendSuccess, sendError } = require('../utils/responseHandler');
 
@@ -68,30 +69,49 @@ const addItineraryItem = async (req, res) => {
       });
     }
 
-    // Push notifications to other travelers in room
+    // Push notifications + in-app notifications to other travelers in room
     const otherMembers = await RoomMember.find({
       roomId,
       userId: { $ne: req.user._id },
-    });
+    }).select('userId').lean();
     const userIds = otherMembers.map((m) => m.userId);
-    const usersToNotify = await User.find({ _id: { $in: userIds }, pushToken: { $ne: '' } });
 
-    const pushMessages = usersToNotify.map((u) => ({
-      to: u.pushToken,
-      sound: 'default',
-      title: 'Itinerary Updated 🗓️',
-      body: `${req.user.name} added "${item.title}" to the trip schedule`,
-      data: {
-        type: 'itinerary_item_added',
-        roomId: roomId.toString(),
-        itemId: item._id.toString(),
-      },
-    }));
+    if (userIds.length > 0) {
+      Notification.insertMany(
+        userIds.map((uid) => ({
+          recipientId: uid,
+          senderId: req.user._id,
+          roomId,
+          type: 'itinerary_reminder',
+          title: 'Itinerary Updated 🗓️',
+          body: `${req.user.name} added "${item.title}" to the trip schedule`,
+          data: {
+            type: 'itinerary_item_added',
+            roomId: roomId.toString(),
+            itemId: item._id.toString(),
+          },
+        }))
+      ).catch((err) => console.error('Itinerary notification DB error:', err));
 
-    if (pushMessages.length > 0) {
-      sendPushNotifications(pushMessages).catch((err) =>
-        console.error('Itinerary push error:', err)
-      );
+      const usersToNotify = await User.find({ _id: { $in: userIds }, pushToken: { $ne: '' } }).select('pushToken');
+
+      const pushMessages = usersToNotify.map((u) => ({
+        to: u.pushToken,
+        sound: 'default',
+        title: 'Itinerary Updated 🗓️',
+        body: `${req.user.name} added "${item.title}" to the trip schedule`,
+        data: {
+          type: 'itinerary_item_added',
+          roomId: roomId.toString(),
+          itemId: item._id.toString(),
+        },
+      }));
+
+      if (pushMessages.length > 0) {
+        sendPushNotifications(pushMessages).catch((err) =>
+          console.error('Itinerary push error:', err)
+        );
+      }
     }
 
     return sendSuccess(res, 'Activity added to itinerary successfully', { item: populatedItem }, 201);

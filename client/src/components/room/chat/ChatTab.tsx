@@ -40,7 +40,8 @@ const roomMessagesCache = new Map<string, { messages: ChatMessage[]; pinned: Cha
 export const ChatTab: React.FC<ChatTabProps> = ({ data, onRefresh }) => {
   const router = useRouter();
   const { room, membership, members, stats, currentUserId } = data;
-  const cachedRoom = roomMessagesCache.get(room._id);
+  const cacheKey = `${currentUserId || 'anon'}:${room._id}`;
+  const cachedRoom = roomMessagesCache.get(cacheKey);
 
   const [messages, setMessages] = useState<ChatMessage[]>(() => cachedRoom?.messages || []);
   const [pinnedMessages, setPinnedMessages] = useState<ChatMessage[]>(() => cachedRoom?.pinned || []);
@@ -144,12 +145,12 @@ export const ChatTab: React.FC<ChatTabProps> = ({ data, onRefresh }) => {
   // Keep in-memory cache synced for instant tab switching
   useEffect(() => {
     if (messages.length > 0 || pinnedMessages.length > 0) {
-      roomMessagesCache.set(room._id, {
+      roomMessagesCache.set(cacheKey, {
         messages: messages.filter((m) => !m._id.startsWith('optimistic_') && !m._id.startsWith('temp_')),
         pinned: pinnedMessages,
       });
     }
-  }, [room._id, messages, pinnedMessages]);
+  }, [cacheKey, messages, pinnedMessages]);
 
   /* ─── Scroll to referenced reply message & highlight ─── */
   const scrollToMessage = useCallback(

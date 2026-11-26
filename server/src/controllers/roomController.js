@@ -69,12 +69,15 @@ const createRoom = async (req, res) => {
       role: 'owner',
     });
 
-    // Create system message
+    // Create important trip creation system message
+    const createText = `${req.user.name} created the trip "${room.name}"`;
     await Message.create({
       roomId: room._id,
       senderId: req.user._id,
+      type: 'system',
       messageType: 'system',
-      systemAction: `${req.user.name} created the trip "${room.name}"`,
+      content: createText,
+      systemAction: createText,
     });
 
     return sendSuccess(

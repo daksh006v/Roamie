@@ -1,7 +1,7 @@
 const Media = require('../models/Media');
-const Message = require('../models/Message');
 const RoomMember = require('../models/RoomMember');
 const User = require('../models/User');
+const Notification = require('../models/Notification');
 const { uploadToStorage, deleteFromStorage } = require('../config/cloudinary');
 const { sendPushNotifications } = require('../services/pushNotificationService');
 const { sendSuccess, sendError } = require('../utils/responseHandler');
@@ -48,17 +48,10 @@ const uploadMedia = async (req, res) => {
       })
     );
 
-    // If gallery photos, post system activity message & broadcast real-time socket event
+    // Broadcast real-time socket event & notify other travelers (no noisy chat system message)
     if (mediaType === 'image') {
       const count = uploadedMediaList.length;
       const countText = count === 1 ? 'a photo' : `${count} photos`;
-
-      await Message.create({
-        roomId,
-        senderId: req.user._id,
-        messageType: 'system',
-        systemAction: `${req.user.name} added ${countText} to the gallery`,
-      });
 
       // Emit socket event to room channel
       if (req.io) {
@@ -68,29 +61,44 @@ const uploadMedia = async (req, res) => {
         });
       }
 
-      // Send push notification to other members
+      // Send personalized notification + push notification to other members
       const otherMembers = await RoomMember.find({
         roomId,
         userId: { $ne: req.user._id },
-      });
+      }).select('userId').lean();
       const userIds = otherMembers.map((m) => m.userId);
-      const usersToNotify = await User.find({ _id: { $in: userIds }, pushToken: { $ne: '' } });
 
-      const pushMessages = usersToNotify.map((u) => ({
-        to: u.pushToken,
-        sound: 'default',
-        title: 'New Trip Photos 📸',
-        body: `${req.user.name} added ${countText} to the gallery`,
-        data: {
-          type: 'media_uploaded',
-          roomId: roomId.toString(),
-        },
-      }));
+      if (userIds.length > 0) {
+        Notification.insertMany(
+          userIds.map((uid) => ({
+            recipientId: uid,
+            senderId: req.user._id,
+            roomId,
+            type: 'media_uploaded',
+            title: 'New Trip Photos 📸',
+            body: `${req.user.name} shared ${countText} in the trip gallery`,
+            data: { type: 'media_uploaded', roomId: roomId.toString() },
+          }))
+        ).catch((err) => console.error('Media notification DB error:', err));
 
-      if (pushMessages.length > 0) {
-        sendPushNotifications(pushMessages).catch((err) =>
-          console.error('Media push error:', err)
-        );
+        const usersToNotify = await User.find({ _id: { $in: userIds }, pushToken: { $ne: '' } }).select('pushToken');
+
+        const pushMessages = usersToNotify.map((u) => ({
+          to: u.pushToken,
+          sound: 'default',
+          title: 'New Trip Photos 📸',
+          body: `${req.user.name} shared ${countText} in the trip gallery`,
+          data: {
+            type: 'media_uploaded',
+            roomId: roomId.toString(),
+          },
+        }));
+
+        if (pushMessages.length > 0) {
+          sendPushNotifications(pushMessages).catch((err) =>
+            console.error('Media push error:', err)
+          );
+        }
       }
     }
 

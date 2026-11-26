@@ -51,6 +51,7 @@ export const connectSocket = async (): Promise<Socket> => {
     currentSocketToken = latestToken;
 
     socket = io(socketUrl, {
+      forceNew: true,
       auth: { token: latestToken },
       transports: ['websocket', 'polling'],
       reconnection: true,
@@ -88,6 +89,7 @@ export const disconnectSocket = (): void => {
   connectingPromise = null;
   currentSocketToken = null;
   if (socket) {
+    socket.removeAllListeners();
     socket.disconnect();
     socket = null;
   }

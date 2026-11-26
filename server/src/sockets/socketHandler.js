@@ -1,7 +1,9 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const Room = require('../models/Room');
 const RoomMember = require('../models/RoomMember');
 const Message = require('../models/Message');
+const { sendPushNotifications } = require('../services/pushNotificationService');
 
 const initSocketIO = (io) => {
   // Socket.IO Authentication Middleware
@@ -147,6 +149,43 @@ const initSocketIO = (io) => {
         if (callback) {
           callback({ success: true, message: populatedMessage });
         }
+
+        // Send personalized push notifications to other room members (non-blocking)
+        (async () => {
+          try {
+            const [otherMembers, roomDoc] = await Promise.all([
+              RoomMember.find({ roomId, userId: { $ne: socket.user._id } }).select('userId').lean(),
+              Room.findById(roomId).select('name').lean(),
+            ]);
+            if (otherMembers.length === 0) return;
+
+            const userIds = otherMembers.map((m) => m.userId);
+            const usersToNotify = await User.find({
+              _id: { $in: userIds },
+              pushToken: { $ne: '' },
+            }).select('pushToken').lean();
+
+            if (usersToNotify.length === 0) return;
+
+            const roomTitle = roomDoc?.name ? `${socket.user.name} in ${roomDoc.name}` : socket.user.name;
+            const bodyText = messageContent || (resolvedType === 'image' ? 'Sent a photo 📸' : 'Sent a message');
+            const pushMessages = usersToNotify.map((u) => ({
+              to: u.pushToken,
+              sound: 'default',
+              title: roomTitle,
+              body: bodyText,
+              data: {
+                type: 'message',
+                roomId: roomId.toString(),
+                messageId: message._id.toString(),
+              },
+            }));
+
+            await sendPushNotifications(pushMessages);
+          } catch (pushErr) {
+            console.error('Socket message push error:', pushErr);
+          }
+        })();
       } catch (error) {
         console.error('Socket send_message error:', error);
         if (callback) callback({ success: false, error: error.message });

@@ -200,19 +200,6 @@ const toggleLockItinerary = async (req, res) => {
     room.isItineraryLocked = isLocked;
     await room.save();
 
-    const actionText = isLocked
-      ? `${req.user.name} locked the itinerary 🔒`
-      : `${req.user.name} unlocked the itinerary 🔓`;
-
-    await Message.create({
-      roomId: room._id,
-      senderId: req.user._id,
-      type: 'system',
-      messageType: 'system',
-      content: actionText,
-      systemAction: actionText,
-    });
-
     return sendSuccess(res, `Itinerary ${isLocked ? 'locked' : 'unlocked'} successfully`, {
       isItineraryLocked: room.isItineraryLocked,
     });

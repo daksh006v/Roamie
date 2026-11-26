@@ -149,49 +149,66 @@ const addExpense = async (req, res) => {
 
     const populatedExpense = await Expense.findById(expense._id).populate('paidBy', 'name email avatar');
 
-    // Notify other members via push
-    const debtorUserIds = createdSplits
-      .map((s) => s.userId.toString())
-      .filter((uid) => uid !== req.user._id.toString());
-
-    const usersToNotify = await User.find({ _id: { $in: debtorUserIds }, pushToken: { $ne: '' } });
-
-    const pushMessages = usersToNotify.map((u) => ({
-      to: u.pushToken,
-      sound: 'default',
-      title: 'New Expense Added 💰',
-      body: `${req.user.name} added "${expense.title}" (₹${expense.amount})`,
-      data: {
-        type: 'expense',
-        roomId: roomId.toString(),
-        expenseId: expense._id.toString(),
-      },
-    }));
-
-    if (pushMessages.length > 0) {
-      sendPushNotifications(pushMessages).catch((err) =>
-        console.error('Expense push notification error:', err)
-      );
-    }
-
-    // Post system activity message into Room Chat
-    const systemActionText = `${req.user.name} added an expense "${expense.title}" (₹${Number(expense.amount).toLocaleString('en-IN')})`;
-    await Message.create({
-      roomId,
-      senderId: req.user._id,
-      messageType: 'system',
-      systemAction: systemActionText,
+    // Notify every split participant (except the person adding it) with their personalized share
+    const splitByUserId = new Map();
+    createdSplits.forEach((s) => {
+      const uid = s.userId.toString();
+      if (uid !== req.user._id.toString()) {
+        splitByUserId.set(uid, (splitByUserId.get(uid) || 0) + Number(s.amount || 0));
+      }
     });
 
-    if (req.io) {
-      req.io.to(`room:${roomId}`).emit('new_message', {
-        _id: new Date().getTime().toString(),
-        roomId,
-        senderId: { _id: req.user._id, name: req.user.name },
-        messageType: 'system',
-        systemAction: systemActionText,
-        createdAt: new Date().toISOString(),
+    const debtorUserIds = Array.from(splitByUserId.keys());
+    if (debtorUserIds.length > 0) {
+      const totalFormatted = Number(expense.amount).toLocaleString('en-IN');
+
+      const notificationDocs = debtorUserIds.map((uid) => {
+        const shareFormatted = Math.round((splitByUserId.get(uid) || 0) * 100) / 100;
+        return {
+          recipientId: uid,
+          senderId: req.user._id,
+          roomId,
+          type: 'expense',
+          title: `Bill Split: ${expense.title} 💸`,
+          body: `${req.user.name} split "${expense.title}" (₹${totalFormatted}) with you — your share is ₹${shareFormatted.toLocaleString('en-IN')}`,
+          data: {
+            type: 'expense',
+            roomId: roomId.toString(),
+            expenseId: expense._id.toString(),
+            shareAmount: shareFormatted,
+          },
+        };
       });
+
+      Notification.insertMany(notificationDocs).catch((err) =>
+        console.error('Expense notification DB error:', err)
+      );
+
+      const usersToNotify = await User.find({
+        _id: { $in: debtorUserIds },
+        pushToken: { $ne: '' },
+      }).select('pushToken');
+
+      const pushMessages = usersToNotify.map((u) => {
+        const shareFormatted = Math.round((splitByUserId.get(u._id.toString()) || 0) * 100) / 100;
+        return {
+          to: u.pushToken,
+          sound: 'default',
+          title: `Bill Split: ${expense.title} 💸`,
+          body: `${req.user.name} split "${expense.title}" (₹${totalFormatted}) — your share is ₹${shareFormatted.toLocaleString('en-IN')}`,
+          data: {
+            type: 'expense',
+            roomId: roomId.toString(),
+            expenseId: expense._id.toString(),
+          },
+        };
+      });
+
+      if (pushMessages.length > 0) {
+        sendPushNotifications(pushMessages).catch((err) =>
+          console.error('Expense push notification error:', err)
+        );
+      }
     }
 
     return sendSuccess(
@@ -402,30 +419,38 @@ const settleSettlement = async (req, res) => {
     });
 
     const debtorUser = await User.findById(fromUserId).select('name');
-    const creditorUser = await User.findById(toUserId).select('name');
+    const creditorUser = await User.findById(toUserId).select('name pushToken');
     const debtorName = debtorUser ? debtorUser.name : 'A traveler';
-    const creditorName = creditorUser ? creditorUser.name : 'a traveler';
-    const settleActionText = `✅ ${debtorName} settled ₹${remainingAmount.toLocaleString('en-IN')} with ${creditorName}`;
 
-    await Message.create({
-      roomId,
-      senderId: req.user._id,
-      messageType: 'system',
-      systemAction: settleActionText,
-    });
+    if (toUserId.toString() !== req.user._id.toString() && creditorUser) {
+      const amountFormatted = remainingAmount.toLocaleString('en-IN');
+      Notification.create({
+        recipientId: toUserId,
+        senderId: req.user._id,
+        roomId,
+        type: 'expense',
+        title: 'Payment Settled ✅',
+        body: `${debtorName} settled ₹${amountFormatted} with you`,
+        data: { type: 'expense_settled', roomId: roomId.toString(), settlementId: settlement._id.toString() },
+      }).catch((err) => console.error('Settlement notification error:', err));
+
+      if (creditorUser.pushToken) {
+        sendPushNotifications([
+          {
+            to: creditorUser.pushToken,
+            sound: 'default',
+            title: 'Payment Settled ✅',
+            body: `${debtorName} settled ₹${amountFormatted} with you`,
+            data: { type: 'expense_settled', roomId: roomId.toString() },
+          },
+        ]).catch((err) => console.error('Settlement push error:', err));
+      }
+    }
 
     if (req.io) {
       req.io.to(`room:${roomId}`).emit('expense_settlement_updated', {
         roomId,
         settlementId: settlement._id,
-      });
-      req.io.to(`room:${roomId}`).emit('new_message', {
-        _id: new Date().getTime().toString(),
-        roomId,
-        senderId: { _id: req.user._id, name: req.user.name },
-        messageType: 'system',
-        systemAction: settleActionText,
-        createdAt: new Date().toISOString(),
       });
     }
 

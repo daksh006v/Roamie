@@ -79,12 +79,15 @@ const joinRoom = async (req, res) => {
       role: 'member',
     });
 
-    // Post system message in room chat
+    // Post important membership system message in room chat
+    const joinText = `${req.user.name} joined "${room.name}"`;
     await Message.create({
       roomId: room._id,
       senderId: req.user._id,
+      type: 'system',
       messageType: 'system',
-      systemAction: `${req.user.name} joined the room`,
+      content: joinText,
+      systemAction: joinText,
     });
 
     // Notify room owner of new member
