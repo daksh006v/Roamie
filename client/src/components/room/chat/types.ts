@@ -26,6 +26,8 @@ export interface ChatMessage {
   roomId: string;
   senderId: MessageUser | null;
   type: 'text' | 'image' | 'system' | 'poll' | 'audio' | 'location' | 'itinerary' | 'expense';
+  messageType?: string;
+  systemAction?: string;
   content: string;
   text?: string;
   media?: {

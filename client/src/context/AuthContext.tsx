@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 import api from '../services/api';
+import { disconnectSocket } from '../services/socket';
 
 export interface User {
   _id: string;
@@ -89,6 +90,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       const res = await api.post('/auth/login', { email, password });
       if (res.data?.success) {
+        disconnectSocket();
         const { user: userData, token: userToken } = res.data.data;
         await saveToken(userToken);
         setUser(userData);
@@ -105,6 +107,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       const res = await api.post('/auth/register', { name, email, password, phone });
       if (res.data?.success) {
+        disconnectSocket();
         const { user: userData, token: userToken } = res.data.data;
         await saveToken(userToken);
         setUser(userData);
@@ -118,6 +121,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const logout = async () => {
+    disconnectSocket();
     await removeToken();
   };
 

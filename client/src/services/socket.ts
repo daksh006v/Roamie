@@ -5,6 +5,7 @@ import { API_URL } from './api';
 
 let socket: Socket | null = null;
 let connectingPromise: Promise<Socket> | null = null;
+let currentSocketToken: string | null = null;
 
 const getSocketUrl = (): string => {
   return API_URL.replace(/\/api\/?$/, '');
@@ -23,6 +24,16 @@ export const getAuthToken = async (): Promise<string | null> => {
 };
 
 export const connectSocket = async (): Promise<Socket> => {
+  const token = await getAuthToken();
+
+  // If the authenticated user changed, tear down the stale socket before reconnecting
+  if (socket && token !== currentSocketToken) {
+    socket.disconnect();
+    socket = null;
+    currentSocketToken = null;
+    connectingPromise = null;
+  }
+
   if (socket) {
     if (!socket.connected) {
       socket.connect();
@@ -35,11 +46,12 @@ export const connectSocket = async (): Promise<Socket> => {
   }
 
   connectingPromise = (async () => {
-    const token = await getAuthToken();
+    const latestToken = token || (await getAuthToken());
     const socketUrl = getSocketUrl();
+    currentSocketToken = latestToken;
 
     socket = io(socketUrl, {
-      auth: { token },
+      auth: { token: latestToken },
       transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionAttempts: Infinity,
@@ -73,6 +85,8 @@ export const connectSocket = async (): Promise<Socket> => {
 export const getSocket = (): Socket | null => socket;
 
 export const disconnectSocket = (): void => {
+  connectingPromise = null;
+  currentSocketToken = null;
   if (socket) {
     socket.disconnect();
     socket = null;

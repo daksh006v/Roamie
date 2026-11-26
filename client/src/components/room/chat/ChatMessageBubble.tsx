@@ -60,7 +60,9 @@ const ChatMessageBubbleComponent: React.FC<ChatMessageBubbleProps> = ({
   );
 
   /* --- System Message --- */
-  if (item.type === 'system') {
+  if (item.type === 'system' || item.messageType === 'system') {
+    const sysText = (item.content || item.text || item.systemAction || '').trim();
+    if (!sysText) return null;
     return (
       <View key={item._id}>
         {showDate && renderDateSeparator(formatDateSeparator(item.createdAt))}
@@ -68,7 +70,7 @@ const ChatMessageBubbleComponent: React.FC<ChatMessageBubbleProps> = ({
           <View style={styles.systemMsgPill}>
             <Feather name="user-plus" size={13} color="#59615A" style={{ marginRight: 6 }} />
             <Text style={styles.systemMsgText}>
-              {item.content || item.text || 'System event'} · {formatTime(item.createdAt)}
+              {sysText} · {formatTime(item.createdAt)}
             </Text>
           </View>
         </View>
@@ -209,6 +211,20 @@ const ChatMessageBubbleComponent: React.FC<ChatMessageBubbleProps> = ({
   const sender = item.senderId;
   const senderName = sender?.name || 'Traveler';
   const roleColor = sender?._id ? getRoleColor(sender._id, getAvatarColor(senderName)) : '#243C32';
+
+  const hasText = Boolean((item.content || item.text || '').trim());
+  const hasMedia = Boolean(item.media?.url || item.mediaUrl);
+  const hasMeta = Boolean(
+    item.metadata &&
+      ((item.metadata.title && item.metadata.title.trim()) ||
+        (item.metadata.location && item.metadata.location.trim()) ||
+        (item.metadata.details && item.metadata.details.trim()) ||
+        item.metadata.placeId ||
+        item.metadata.imageUrl)
+  );
+  if (!hasText && !hasMedia && !hasMeta) {
+    return null;
+  }
 
   const prevSenderId = typeof prevItem?.senderId === 'object' ? prevItem?.senderId?._id : prevItem?.senderId;
   const currSenderId = typeof sender === 'object' ? sender?._id : sender;

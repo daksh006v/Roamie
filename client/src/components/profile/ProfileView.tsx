@@ -34,6 +34,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ onClose }) => {
   const [homeCity, setHomeCity] = useState(user?.homeCity || '');
   const [phone, setPhone] = useState(user?.phone || '');
   const [travelStyle, setTravelStyle] = useState(user?.travelStyle || '');
+  const [avatarUri, setAvatarUri] = useState(user?.avatar || '');
 
   const [saving, setSaving] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
@@ -45,32 +46,24 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ onClose }) => {
       setHomeCity(user.homeCity || '');
       setPhone(user.phone || '');
       setTravelStyle(user.travelStyle || '');
+      setAvatarUri(user.avatar || '');
     }
-  }, [user]);
+  }, [user?._id]);
 
   const hasChanges =
     name.trim() !== (user?.name || '').trim() ||
     bio.trim() !== (user?.bio || '').trim() ||
     homeCity.trim() !== (user?.homeCity || '').trim() ||
     phone.trim() !== (user?.phone || '').trim() ||
-    travelStyle !== (user?.travelStyle || '');
+    travelStyle !== (user?.travelStyle || '') ||
+    avatarUri !== (user?.avatar || '');
 
   const handlePickAvatar = async (uri: string) => {
-    setUploadingAvatar(true);
-    const res = await uploadAvatar(uri);
-    setUploadingAvatar(false);
-    if (!res.success) {
-      Alert.alert('Upload Failed', res.message || 'Could not update profile photo.');
-    }
+    setAvatarUri(uri);
   };
 
   const handleRemoveAvatar = async () => {
-    setUploadingAvatar(true);
-    const res = await updateProfile({ avatar: '' });
-    setUploadingAvatar(false);
-    if (!res.success) {
-      Alert.alert('Update Failed', res.message || 'Could not remove profile photo.');
-    }
+    setAvatarUri('');
   };
 
   const handleSave = async () => {
@@ -81,12 +74,34 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ onClose }) => {
     }
 
     setSaving(true);
+    let avatarRemoved = false;
+    const savedAvatar = user?.avatar || '';
+
+    if (avatarUri !== savedAvatar) {
+      if (avatarUri) {
+        setUploadingAvatar(true);
+        const avatarRes = await uploadAvatar(avatarUri);
+        setUploadingAvatar(false);
+        if (!avatarRes.success) {
+          setSaving(false);
+          Alert.alert('Upload Failed', avatarRes.message || 'Could not update profile photo.');
+          return;
+        }
+        if (avatarRes.avatarUrl) {
+          setAvatarUri(avatarRes.avatarUrl);
+        }
+      } else {
+        avatarRemoved = true;
+      }
+    }
+
     const res = await updateProfile({
       name: trimmedName,
       bio: bio.trim(),
       homeCity: homeCity.trim(),
       phone: phone.trim(),
       travelStyle,
+      ...(avatarRemoved ? { avatar: '' } : {}),
     });
     setSaving(false);
 
@@ -164,7 +179,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ onClose }) => {
           {/* Avatar Section */}
           <ProfileAvatarPicker
             name={name || user?.name || 'Traveler'}
-            avatar={user?.avatar}
+            avatar={avatarUri}
             uploading={uploadingAvatar}
             onPickImage={handlePickAvatar}
             onRemoveAvatar={handleRemoveAvatar}

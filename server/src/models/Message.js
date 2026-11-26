@@ -110,10 +110,17 @@ messageSchema.pre('save', function (next) {
     this.media = { url: this.mediaUrl, type: 'image', width: 0, height: 0 };
   }
 
-  if (this.type && !this.messageType) {
+  if (this.messageType === 'system' && this.type !== 'system') {
+    this.type = 'system';
+  } else if (this.type && !this.messageType) {
     this.messageType = this.type;
   } else if (this.messageType && !this.type) {
     this.type = this.messageType;
+  }
+
+  if (this.systemAction && !this.content && !this.text) {
+    this.content = this.systemAction;
+    this.text = this.systemAction;
   }
 
   next();
