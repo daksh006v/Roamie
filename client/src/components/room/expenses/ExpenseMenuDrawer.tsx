@@ -34,6 +34,7 @@ interface ExpenseMenuDrawerProps {
   onClose: () => void;
   onExpensePress: (expense: ExpenseItem) => void;
   onSettle: (settlement: SettlementRow) => void;
+  onConfirm?: (settlementId: string) => void;
 }
 
 const formatCurrency = (amount: number) =>
@@ -59,8 +60,8 @@ const menuItems: {
   },
   {
     key: 'everyone',
-    label: 'Cost Breakdown',
-    subtitle: 'Who owes whom & settlement status',
+    label: 'Cost Management',
+    subtitle: 'Debts, descriptions & confirmations',
     icon: 'users',
   },
   {
@@ -84,6 +85,7 @@ export const ExpenseMenuDrawer: React.FC<ExpenseMenuDrawerProps> = ({
   onClose,
   onExpensePress,
   onSettle,
+  onConfirm,
 }) => {
   const [activeView, setActiveView] = useState<ExpenseDrawerView>(view);
   const [query, setQuery] = useState('');
@@ -297,25 +299,55 @@ export const ExpenseMenuDrawer: React.FC<ExpenseMenuDrawerProps> = ({
                       <Text style={styles.emptySub}>Does not owe anyone.</Text>
                     ) : (
                       <>
-                        {pendingOwes.map((s) => (
-                          <View key={`po-${s.from._id}-${s.to._id}`} style={styles.debtRow}>
-                            <Text style={styles.debtLabel} numberOfLines={1}>
-                              To {s.to._id === currentUserId ? 'You' : s.to.name}
-                            </Text>
-                            <Text style={styles.rowAmount}>{formatCurrency(s.amount)}</Text>
-                            <View style={styles.pendingPill}>
-                              <Text style={styles.pendingPillText}>Pending</Text>
+                        {pendingOwes.map((s) => {
+                          const isAwaitingConfirm = s.status === 'pending_confirmation' && !!s.pendingSettlementId;
+                          const detailText = (s.details || [])
+                            .map((d) => `${d.title} (${formatCurrency(d.amount)})`)
+                            .join(', ');
+
+                          return (
+                            <View key={`po-${s.from._id}-${s.to._id}`} style={styles.debtBlock}>
+                              <View style={styles.debtRow}>
+                                <Text style={styles.debtLabel} numberOfLines={1}>
+                                  To {s.to._id === currentUserId ? 'You' : s.to.name}
+                                </Text>
+                                <Text style={styles.rowAmount}>{formatCurrency(s.amount)}</Text>
+                                {isAwaitingConfirm ? (
+                                  <View style={styles.awaitingPill}>
+                                    <Text style={styles.awaitingPillText}>Awaiting Confirmation</Text>
+                                  </View>
+                                ) : (
+                                  <View style={styles.pendingPill}>
+                                    <Text style={styles.pendingPillText}>Pending</Text>
+                                  </View>
+                                )}
+                              </View>
+                              {detailText ? (
+                                <Text style={styles.debtDesc} numberOfLines={2}>
+                                  For: {detailText}
+                                </Text>
+                              ) : null}
+                              <View style={styles.debtActionsRow}>
+                                {!isAwaitingConfirm && s.from._id === currentUserId && (
+                                  <TouchableOpacity
+                                    style={styles.markPaidBtn}
+                                    onPress={() => onSettle(s)}
+                                  >
+                                    <Text style={styles.markPaidText}>Mark Paid</Text>
+                                  </TouchableOpacity>
+                                )}
+                                {isAwaitingConfirm && s.to._id === currentUserId && s.pendingSettlementId && onConfirm && (
+                                  <TouchableOpacity
+                                    style={styles.confirmBtn}
+                                    onPress={() => onConfirm(s.pendingSettlementId!)}
+                                  >
+                                    <Text style={styles.markPaidText}>Confirm Received</Text>
+                                  </TouchableOpacity>
+                                )}
+                              </View>
                             </View>
-                            {s.from._id === currentUserId && (
-                              <TouchableOpacity
-                                style={styles.markPaidBtn}
-                                onPress={() => onSettle(s)}
-                              >
-                                <Text style={styles.markPaidText}>Mark Paid</Text>
-                              </TouchableOpacity>
-                            )}
-                          </View>
-                        ))}
+                          );
+                        })}
                         {paidOwes.map((s) => (
                           <View key={`do-${s._id}`} style={styles.debtRow}>
                             <Text style={styles.debtLabel} numberOfLines={1}>
@@ -336,17 +368,55 @@ export const ExpenseMenuDrawer: React.FC<ExpenseMenuDrawerProps> = ({
                       <Text style={styles.emptySub}>No incoming payments.</Text>
                     ) : (
                       <>
-                        {pendingReceives.map((s) => (
-                          <View key={`pr-${s.from._id}-${s.to._id}`} style={styles.debtRow}>
-                            <Text style={styles.debtLabel} numberOfLines={1}>
-                              From {s.from._id === currentUserId ? 'You' : s.from.name}
-                            </Text>
-                            <Text style={styles.rowAmount}>{formatCurrency(s.amount)}</Text>
-                            <View style={styles.pendingPill}>
-                              <Text style={styles.pendingPillText}>Pending</Text>
+                        {pendingReceives.map((s) => {
+                          const isAwaitingConfirm = s.status === 'pending_confirmation' && !!s.pendingSettlementId;
+                          const detailText = (s.details || [])
+                            .map((d) => `${d.title} (${formatCurrency(d.amount)})`)
+                            .join(', ');
+
+                          return (
+                            <View key={`pr-${s.from._id}-${s.to._id}`} style={styles.debtBlock}>
+                              <View style={styles.debtRow}>
+                                <Text style={styles.debtLabel} numberOfLines={1}>
+                                  From {s.from._id === currentUserId ? 'You' : s.from.name}
+                                </Text>
+                                <Text style={styles.rowAmount}>{formatCurrency(s.amount)}</Text>
+                                {isAwaitingConfirm ? (
+                                  <View style={styles.awaitingPill}>
+                                    <Text style={styles.awaitingPillText}>Awaiting Confirmation</Text>
+                                  </View>
+                                ) : (
+                                  <View style={styles.pendingPill}>
+                                    <Text style={styles.pendingPillText}>Pending</Text>
+                                  </View>
+                                )}
+                              </View>
+                              {detailText ? (
+                                <Text style={styles.debtDesc} numberOfLines={2}>
+                                  For: {detailText}
+                                </Text>
+                              ) : null}
+                              <View style={styles.debtActionsRow}>
+                                {isAwaitingConfirm && s.to._id === currentUserId && s.pendingSettlementId && onConfirm && (
+                                  <TouchableOpacity
+                                    style={styles.confirmBtn}
+                                    onPress={() => onConfirm(s.pendingSettlementId!)}
+                                  >
+                                    <Text style={styles.markPaidText}>Confirm Received</Text>
+                                  </TouchableOpacity>
+                                )}
+                                {!isAwaitingConfirm && s.to._id === currentUserId && (
+                                  <TouchableOpacity
+                                    style={styles.confirmBtn}
+                                    onPress={() => onSettle(s)}
+                                  >
+                                    <Text style={styles.markPaidText}>Confirm Received</Text>
+                                  </TouchableOpacity>
+                                )}
+                              </View>
                             </View>
-                          </View>
-                        ))}
+                          );
+                        })}
                         {paidReceives.map((s) => (
                           <View key={`dr-${s._id}`} style={styles.debtRow}>
                             <Text style={styles.debtLabel} numberOfLines={1}>
@@ -558,8 +628,16 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
-  debtRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 3 },
+  debtBlock: {
+    paddingVertical: 5,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3ECE0',
+    gap: 4,
+  },
+  debtRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 2 },
   debtLabel: { flex: 1, fontSize: 13, fontWeight: '600', color: Colors.rooms.darkText },
+  debtDesc: { fontSize: 11.5, color: Colors.rooms.mutedText, lineHeight: 16 },
+  debtActionsRow: { flexDirection: 'row', gap: 8, marginTop: 2 },
   pendingPill: {
     paddingHorizontal: 8,
     paddingVertical: 3,
@@ -569,6 +647,15 @@ const styles = StyleSheet.create({
     borderColor: '#F3D1AE',
   },
   pendingPillText: { fontSize: 11, fontWeight: '700', color: '#C96A25' },
+  awaitingPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+    backgroundColor: '#EEF2FF',
+    borderWidth: 1,
+    borderColor: '#C7D2FE',
+  },
+  awaitingPillText: { fontSize: 10.5, fontWeight: '700', color: '#4338CA' },
   paidPill: {
     paddingHorizontal: 8,
     paddingVertical: 3,
@@ -579,10 +666,16 @@ const styles = StyleSheet.create({
   },
   paidPillText: { fontSize: 11, fontWeight: '700', color: '#2E7D32' },
   markPaidBtn: {
-    paddingHorizontal: 9,
-    paddingVertical: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
     borderRadius: 8,
     backgroundColor: Colors.rooms.forestGreen,
+  },
+  confirmBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    backgroundColor: '#C96A25',
   },
   markPaidText: { color: '#FFFFFF', fontSize: 11, fontWeight: '800' },
   simpleRow: {

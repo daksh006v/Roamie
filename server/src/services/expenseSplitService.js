@@ -13,13 +13,19 @@ const calculateRoomBalances = async (roomId, currentUserId) => {
   const members = await RoomMember.find({ roomId }).populate('userId', 'name email avatar');
   const expenses = await Expense.find({ roomId }).populate('paidBy', 'name email avatar');
   const splits = await ExpenseSplit.find({ roomId }).populate('userId', 'name email avatar');
-  const settledRecords = await Settlement.find({ roomId, status: 'settled' });
+  const [settledRecords, pendingRecords] = await Promise.all([
+    Settlement.find({ roomId, status: 'settled' }),
+    Settlement.find({ roomId, status: 'pending' }),
+  ]);
 
   // Map user balances: userId -> net amount
   const userBalances = {};
   const userTotalPaid = {};
   const userTotalOwed = {};
   const memberMap = {};
+  const expenseById = {};
+  const pairSplitDetails = {};
+  const userDebtDetails = {};
 
   members.forEach((m) => {
     if (m.userId) {
@@ -27,6 +33,7 @@ const calculateRoomBalances = async (roomId, currentUserId) => {
       userBalances[uid] = 0;
       userTotalPaid[uid] = 0;
       userTotalOwed[uid] = 0;
+      userDebtDetails[uid] = [];
       memberMap[uid] = {
         _id: m.userId._id,
         name: m.userId.name,
@@ -39,6 +46,7 @@ const calculateRoomBalances = async (roomId, currentUserId) => {
 
   // Sum amounts paid by users
   expenses.forEach((expense) => {
+    expenseById[expense._id.toString()] = expense;
     if (expense.paidBy) {
       const payerId = expense.paidBy._id.toString();
       if (userBalances[payerId] !== undefined) {
@@ -48,13 +56,34 @@ const calculateRoomBalances = async (roomId, currentUserId) => {
     }
   });
 
-  // Subtract all expense shares to form gross balances.
+  // Subtract all expense shares to form gross balances and track where debts come from.
   splits.forEach((split) => {
     if (split.userId) {
       const debtorId = split.userId._id.toString();
       if (userBalances[debtorId] !== undefined) {
         userBalances[debtorId] -= split.amount;
         userTotalOwed[debtorId] += split.amount;
+      }
+      const exp = expenseById[split.expenseId?.toString()];
+      if (exp && exp.paidBy) {
+        const payerId = exp.paidBy._id.toString();
+        if (payerId !== debtorId) {
+          const pairKey = `${debtorId}->${payerId}`;
+          if (!pairSplitDetails[pairKey]) pairSplitDetails[pairKey] = [];
+          pairSplitDetails[pairKey].push({
+            expenseId: exp._id,
+            title: exp.title,
+            amount: Math.round(split.amount * 100) / 100,
+          });
+          if (userDebtDetails[debtorId]) {
+            userDebtDetails[debtorId].push({
+              expenseId: exp._id,
+              title: exp.title,
+              amount: Math.round(split.amount * 100) / 100,
+              paidByName: exp.paidBy.name || 'Member',
+            });
+          }
+        }
       }
     }
   });
@@ -104,10 +133,21 @@ const calculateRoomBalances = async (roomId, currentUserId) => {
     const settleAmount = Math.min(debtor.amount, creditor.amount);
 
     if (settleAmount > 0.01) {
+      const fromIdStr = debtor.user._id.toString();
+      const toIdStr = creditor.user._id.toString();
+      const directDetails = pairSplitDetails[`${fromIdStr}->${toIdStr}`] || [];
+      const details = directDetails.length > 0 ? directDetails : (userDebtDetails[fromIdStr] || []).slice(0, 5);
+      const pendingMatch = pendingRecords.find(
+        (p) => p.fromUser.toString() === fromIdStr && p.toUser.toString() === toIdStr
+      );
+
       settlements.push({
         from: debtor.user,
         to: creditor.user,
         amount: Math.round(settleAmount * 100) / 100,
+        details,
+        pendingSettlementId: pendingMatch ? pendingMatch._id : null,
+        status: pendingMatch ? 'pending_confirmation' : 'pending',
       });
     }
 

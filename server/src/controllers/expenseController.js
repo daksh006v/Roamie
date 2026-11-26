@@ -391,10 +391,11 @@ const settleSettlement = async (req, res) => {
 
     const callerMember = req.roomMember || (await RoomMember.findOne({ roomId, userId: req.user._id }));
     const isDebtor = fromUserId.toString() === req.user._id.toString();
+    const isCreditor = toUserId.toString() === req.user._id.toString();
     const isOwnerOrAdmin = callerMember && (callerMember.role === 'owner' || callerMember.role === 'admin');
 
-    if (!isDebtor && !isOwnerOrAdmin) {
-      return sendError(res, 'Only the person who owes this debt or a trip admin can mark it as paid', 403);
+    if (!isDebtor && !isCreditor && !isOwnerOrAdmin) {
+      return sendError(res, 'Only the payer, receiver, or a trip admin can update this settlement', 403);
     }
 
     const balances = await calculateRoomBalances(roomId, req.user._id);
@@ -408,30 +409,47 @@ const settleSettlement = async (req, res) => {
       return sendError(res, 'Settlement amount does not match the current outstanding debt', 400);
     }
 
-    const settlement = await Settlement.create({
+    // Two-step confirmation: debtor marks as pending confirmation; creditor directly settles
+    const nextStatus = isCreditor ? 'settled' : 'pending';
+    let settlement = await Settlement.findOne({
       roomId,
       fromUser: fromUserId,
       toUser: toUserId,
-      amount: remainingAmount,
-      status: 'settled',
-      settledAt: new Date(),
-      settledBy: req.user._id,
+      status: 'pending',
     });
 
-    const debtorUser = await User.findById(fromUserId).select('name');
+    if (settlement) {
+      settlement.amount = remainingAmount;
+      settlement.status = nextStatus;
+      settlement.settledAt = new Date();
+      settlement.settledBy = req.user._id;
+      await settlement.save();
+    } else {
+      settlement = await Settlement.create({
+        roomId,
+        fromUser: fromUserId,
+        toUser: toUserId,
+        amount: remainingAmount,
+        status: nextStatus,
+        settledAt: new Date(),
+        settledBy: req.user._id,
+      });
+    }
+
+    const debtorUser = await User.findById(fromUserId).select('name pushToken');
     const creditorUser = await User.findById(toUserId).select('name pushToken');
     const debtorName = debtorUser ? debtorUser.name : 'A traveler';
+    const amountFormatted = remainingAmount.toLocaleString('en-IN');
 
-    if (toUserId.toString() !== req.user._id.toString() && creditorUser) {
-      const amountFormatted = remainingAmount.toLocaleString('en-IN');
+    if (nextStatus === 'pending' && creditorUser && toUserId.toString() !== req.user._id.toString()) {
       Notification.create({
         recipientId: toUserId,
         senderId: req.user._id,
         roomId,
         type: 'expense',
-        title: 'Payment Settled ✅',
-        body: `${debtorName} settled ₹${amountFormatted} with you`,
-        data: { type: 'expense_settled', roomId: roomId.toString(), settlementId: settlement._id.toString() },
+        title: 'Confirm Payment Received 💸',
+        body: `${debtorName} marked ₹${amountFormatted} as paid to you — tap to confirm`,
+        data: { type: 'expense_pending_confirm', roomId: roomId.toString(), settlementId: settlement._id.toString() },
       }).catch((err) => console.error('Settlement notification error:', err));
 
       if (creditorUser.pushToken) {
@@ -439,8 +457,30 @@ const settleSettlement = async (req, res) => {
           {
             to: creditorUser.pushToken,
             sound: 'default',
-            title: 'Payment Settled ✅',
-            body: `${debtorName} settled ₹${amountFormatted} with you`,
+            title: 'Confirm Payment Received 💸',
+            body: `${debtorName} marked ₹${amountFormatted} as paid to you — tap to confirm`,
+            data: { type: 'expense_pending_confirm', roomId: roomId.toString() },
+          },
+        ]).catch((err) => console.error('Settlement push error:', err));
+      }
+    } else if (nextStatus === 'settled' && debtorUser && fromUserId.toString() !== req.user._id.toString()) {
+      Notification.create({
+        recipientId: fromUserId,
+        senderId: req.user._id,
+        roomId,
+        type: 'expense',
+        title: 'Payment Confirmed ✅',
+        body: `${req.user.name} confirmed your ₹${amountFormatted} payment`,
+        data: { type: 'expense_settled', roomId: roomId.toString(), settlementId: settlement._id.toString() },
+      }).catch((err) => console.error('Settlement notification error:', err));
+
+      if (debtorUser.pushToken) {
+        sendPushNotifications([
+          {
+            to: debtorUser.pushToken,
+            sound: 'default',
+            title: 'Payment Confirmed ✅',
+            body: `${req.user.name} confirmed your ₹${amountFormatted} payment`,
             data: { type: 'expense_settled', roomId: roomId.toString() },
           },
         ]).catch((err) => console.error('Settlement push error:', err));
@@ -454,7 +494,13 @@ const settleSettlement = async (req, res) => {
       });
     }
 
-    return sendSuccess(res, 'Settlement marked as paid', { settlement });
+    return sendSuccess(
+      res,
+      nextStatus === 'pending'
+        ? 'Marked as paid — awaiting receiver confirmation'
+        : 'Settlement confirmed as paid',
+      { settlement }
+    );
   } catch (error) {
     return sendError(res, error.message, 500);
   }
@@ -624,6 +670,67 @@ const editExpense = async (req, res) => {
   }
 };
 
+// @desc    Confirm receipt of a pending settlement (Creditor only)
+// @route   PUT /api/rooms/:roomId/expenses/settlements/:settlementId/confirm
+// @access  Private (Creditor)
+const confirmSettlement = async (req, res) => {
+  try {
+    const { roomId, settlementId } = req.params;
+    const settlement = await Settlement.findOne({ _id: settlementId, roomId });
+
+    if (!settlement) {
+      return sendError(res, 'Pending settlement not found', 404);
+    }
+
+    if (settlement.toUser.toString() !== req.user._id.toString()) {
+      return sendError(res, 'Only the person receiving the money can confirm receipt', 403);
+    }
+
+    settlement.status = 'settled';
+    settlement.settledAt = new Date();
+    settlement.settledBy = req.user._id;
+    await settlement.save();
+
+    const debtorUser = await User.findById(settlement.fromUser).select('name pushToken');
+    const amountFormatted = Number(settlement.amount).toLocaleString('en-IN');
+
+    if (debtorUser) {
+      Notification.create({
+        recipientId: settlement.fromUser,
+        senderId: req.user._id,
+        roomId,
+        type: 'expense',
+        title: 'Payment Confirmed ✅',
+        body: `${req.user.name} confirmed your ₹${amountFormatted} payment`,
+        data: { type: 'expense_settled', roomId: roomId.toString(), settlementId: settlement._id.toString() },
+      }).catch((err) => console.error('Confirm settlement notification error:', err));
+
+      if (debtorUser.pushToken) {
+        sendPushNotifications([
+          {
+            to: debtorUser.pushToken,
+            sound: 'default',
+            title: 'Payment Confirmed ✅',
+            body: `${req.user.name} confirmed your ₹${amountFormatted} payment`,
+            data: { type: 'expense_settled', roomId: roomId.toString() },
+          },
+        ]).catch((err) => console.error('Confirm settlement push error:', err));
+      }
+    }
+
+    if (req.io) {
+      req.io.to(`room:${roomId}`).emit('expense_settlement_updated', {
+        roomId,
+        settlementId: settlement._id,
+      });
+    }
+
+    return sendSuccess(res, 'Payment confirmed as settled', { settlement });
+  } catch (error) {
+    return sendError(res, error.message, 500);
+  }
+};
+
 module.exports = {
   addExpense,
   getExpenses,
@@ -632,6 +739,7 @@ module.exports = {
   getBalances,
   settleSplit,
   settleSettlement,
+  confirmSettlement,
   deleteExpense,
   editExpense,
 };

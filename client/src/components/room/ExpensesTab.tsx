@@ -178,10 +178,20 @@ export interface SettlementUser {
   role?: string;
 }
 
+export interface SettlementDetailItem {
+  expenseId: string;
+  title: string;
+  amount: number;
+  paidByName?: string;
+}
+
 export interface SettlementRow {
   from: SettlementUser;
   to: SettlementUser;
   amount: number;
+  details?: SettlementDetailItem[];
+  pendingSettlementId?: string | null;
+  status?: 'pending' | 'pending_confirmation';
 }
 
 export interface BalanceBreakdownItem {
@@ -335,7 +345,9 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({ data, onRefresh }) => 
   }, [roomId, fetchExpensesData]);
 
   const recentExpenses = (expensesData?.expenses || []).slice(0, 4);
-  const recentSettlements = (balancesData?.settlements || []).slice(0, 4);
+  const mySettlements = (balancesData?.settlements || []).filter(
+    (s) => s.from?._id === currentUserId || s.to?._id === currentUserId
+  );
 
   const handleAddExpense = () => {
     try {
@@ -388,7 +400,8 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({ data, onRefresh }) => 
     try {
       Vibration.vibrate(12);
     } catch (e) {}
-    setExpandedSettlement(null);
+    setDrawerView('everyone');
+    setShowAllExpenses(true);
   };
 
   const settleDebt = async (settlement: SettlementRow, index: number) => {
@@ -405,6 +418,16 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({ data, onRefresh }) => 
       setErrorMsg(error.response?.data?.message || error.message || 'Could not mark settlement as paid');
     } finally {
       setSettlingIndex(null);
+    }
+  };
+
+  const confirmDebt = async (settlementId: string) => {
+    try {
+      const response = await api.put(`/rooms/${roomId}/expenses/settlements/${settlementId}/confirm`);
+      if (!response.data?.success) throw new Error(response.data?.message || 'Could not confirm payment');
+      await fetchExpensesData();
+    } catch (error: any) {
+      setErrorMsg(error.response?.data?.message || error.message || 'Could not confirm payment');
     }
   };
 
@@ -725,88 +748,69 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({ data, onRefresh }) => 
                 onPress={handleViewAllSettlements}
                 activeOpacity={0.7}
               >
-                <Text style={styles.seeAllLink}>See all ›</Text>
+                <Text style={styles.seeAllLink}>See more ›</Text>
               </TouchableOpacity>
             </View>
 
-            {recentSettlements.length === 0 ? (
+            <View style={styles.overallDebtCard}>
+              <Text style={styles.overallDebtTitle}>
+                {userNet < -0.01
+                  ? `You owe ${formatCurrencyWithDecimals(Math.abs(userNet))} overall`
+                  : userNet > 0.01
+                  ? `You're owed ${formatCurrencyWithDecimals(userNet)} overall`
+                  : "You're all settled up"}
+              </Text>
+            </View>
+
+            {mySettlements.length === 0 ? (
               <View style={styles.emptyBlockSmall}>
                 <Text style={styles.emptyEmojiSmall}>🤝</Text>
                 <Text style={styles.emptyTitleSmall}>All settled up</Text>
                 <Text style={styles.emptySubtitleSmall}>
-                  No one owes anyone anything right now.
+                  You don't owe anyone and no one owes you right now.
                 </Text>
               </View>
             ) : (
               <View style={styles.settlementList}>
-                {recentSettlements.map((settlement, idx) => {
-                  const fromName = settlement.from?.name || 'User A';
-                  const toName = settlement.to?.name || 'User B';
-                  const fromColor = getMemberColor(fromName);
-                  const toColor = getMemberColor(toName);
+                {mySettlements.map((settlement, idx) => {
+                  const iOwe = settlement.from?._id === currentUserId;
+                  const otherPerson = iOwe ? settlement.to : settlement.from;
+                  const otherName = otherPerson?.name || 'Traveler';
+                  const otherColor = getMemberColor(otherName);
 
                   return (
                     <TouchableOpacity
                       key={`settle-${idx}`}
                       style={styles.settlementRow}
                       activeOpacity={0.8}
-                      onPress={() => setExpandedSettlement(expandedSettlement === idx ? null : idx)}
+                      onPress={handleViewAllSettlements}
                     >
                       <View style={styles.settlementUsers}>
                         <View
                           style={[
                             styles.settlementAvatar,
-                            { backgroundColor: fromColor },
+                            { backgroundColor: otherColor },
                           ]}
                         >
                           <Text style={styles.settlementAvatarText}>
-                            {getInitials(fromName)}
+                            {getInitials(otherName)}
                           </Text>
                         </View>
                         <Text style={styles.settlementUserName} numberOfLines={1}>
-                          {fromName}
-                        </Text>
-                        <View style={styles.settlementArrow}>
-                          <Feather
-                            name="arrow-right"
-                            size={14}
-                            color={Colors.rooms.mutedText}
-                          />
-                        </View>
-                        <View
-                          style={[
-                            styles.settlementAvatar,
-                            { backgroundColor: toColor },
-                          ]}
-                        >
-                          <Text style={styles.settlementAvatarText}>
-                            {getInitials(toName)}
-                          </Text>
-                        </View>
-                        <Text style={styles.settlementUserName} numberOfLines={1}>
-                          {toName}
+                          {iOwe ? `You owe ${otherName}` : `${otherName} owes you`}
                         </Text>
                       </View>
 
                       <View style={styles.settlementRight}>
-                        <Text style={styles.settlementAmount}>
+                        <Text
+                          style={[
+                            styles.settlementAmount,
+                            { color: iOwe ? Colors.rooms.burntOrange : Colors.rooms.forestGreen },
+                          ]}
+                        >
                           {formatCurrencyWithDecimals(settlement.amount)}
                         </Text>
-                        <Feather name={expandedSettlement === idx ? 'chevron-up' : 'chevron-down'} size={16} color={Colors.rooms.mutedText} />
                       </View>
-                      {expandedSettlement === idx && (
-                        <View style={styles.settlementExpanded}>
-                          <Text style={styles.settlementExplanation}>{fromName} owes {toName} {formatCurrencyWithDecimals(settlement.amount)}</Text>
-                          {settlement.from?._id === currentUserId ? (
-                            <TouchableOpacity style={styles.paidButton} onPress={() => settleDebt(settlement, idx)} disabled={settlingIndex === idx}>
-                              <Feather name="check" size={14} color="#FFFFFF" />
-                              <Text style={styles.paidButtonText}>{settlingIndex === idx ? 'Updating...' : 'Paid'}</Text>
-                            </TouchableOpacity>
-                          ) : (
-                            <View style={styles.pendingBadge}><Text style={styles.pendingBadgeText}>Pending</Text></View>
-                          )}
-                        </View>
-                      )}
                     </TouchableOpacity>
                   );
                 })}
@@ -870,6 +874,7 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({ data, onRefresh }) => 
           handleExpensePress(expense);
         }}
         onSettle={(settlement) => settleDebt(settlement, -1)}
+        onConfirm={confirmDebt}
       />
     </View>
   );
@@ -1319,6 +1324,20 @@ const styles = StyleSheet.create({
 
   settlementList: {
     gap: Spacing.xs,
+  },
+  overallDebtCard: {
+    backgroundColor: '#FFFDF8',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E8DDCC',
+    paddingVertical: 11,
+    paddingHorizontal: 14,
+    marginBottom: 10,
+  },
+  overallDebtTitle: {
+    fontSize: 14.5,
+    fontWeight: '800',
+    color: Colors.rooms.darkText,
   },
   settlementRow: {
     backgroundColor: Colors.rooms.cardCream,

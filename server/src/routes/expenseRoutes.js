@@ -8,6 +8,7 @@ const {
   getBalances,
   settleSplit,
   settleSettlement,
+  confirmSettlement,
   deleteExpense,
   editExpense,
 } = require('../controllers/expenseController');
@@ -24,6 +25,7 @@ router.route('/')
 router.get('/balances', getBalances);
 
 router.put('/settlements/settle', settleSettlement);
+router.put('/settlements/:settlementId/confirm', confirmSettlement);
 
 router.route('/:expenseId')
   .get(getExpenseById)
