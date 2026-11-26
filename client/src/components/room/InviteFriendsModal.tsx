@@ -182,7 +182,7 @@ export const InviteFriendsModal: React.FC<InviteFriendsModalProps> = ({
       if (result?.isRegistered) {
         // User found on Roamie — notification dispatched
         Alert.alert(
-          'Invitation Sent! 🎉',
+          'Invitation Sent!',
           `${result.recipient?.name || contact.name} is on Roamie and has been notified in-app.`
         );
       } else {

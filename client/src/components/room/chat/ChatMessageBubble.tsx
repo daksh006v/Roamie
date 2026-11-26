@@ -283,7 +283,7 @@ const ChatMessageBubbleComponent: React.FC<ChatMessageBubbleProps> = ({
                   @{typeof item.replyTo.senderId === 'object' ? item.replyTo.senderId?.name : 'Member'}
                 </Text>
                 <Text style={styles.inFeedReplyText} numberOfLines={1}>
-                  {item.replyTo.content || item.replyTo.text || (item.replyTo.media?.url ? '📸 Photo' : '')}
+                  {item.replyTo.content || item.replyTo.text || (item.replyTo.media?.url ? 'Photo' : '')}
                 </Text>
               </TouchableOpacity>
             </View>

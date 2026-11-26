@@ -64,26 +64,27 @@ export const MembersRolesModal: React.FC<MembersRolesModalProps> = ({
     const adminColor = room?.roleColors?.admin || '#5F745F';
     const memberColor = room?.roleColors?.member || '#59615A';
 
-    return {
+    const badges: Record<string, { label: string; icon: keyof typeof Feather.glyphMap; bg: string; text: string }> = {
       owner: {
         label: 'Owner',
-        emoji: '👑',
+        icon: 'award',
         bg: `${ownerColor}20`,
         text: ownerColor,
       },
       admin: {
         label: 'Admin',
-        emoji: '🛡️',
+        icon: 'shield',
         bg: `${adminColor}20`,
         text: adminColor,
       },
       member: {
         label: 'Member',
-        emoji: '👤',
+        icon: 'user',
         bg: `${memberColor}1A`,
         text: memberColor,
       },
     };
+    return badges;
   }, [room?.roleColors]);
 
   // Sort: Owner first, then Admins, then Members
@@ -178,7 +179,7 @@ export const MembersRolesModal: React.FC<MembersRolesModalProps> = ({
               const displayName = isCurrentUser
                 ? `${m.userId?.name || 'Traveler'} (You)`
                 : m.userId?.name || 'Traveler';
-              const badge = (roleBadges as Record<string, typeof roleBadges.member>)[m.role] || roleBadges.member;
+              const badge = roleBadges[m.role] || roleBadges.member;
               const isTargetOwner = m.role === 'owner';
               const isUpdating = changingMemberId === m._id;
 
@@ -229,7 +230,7 @@ export const MembersRolesModal: React.FC<MembersRolesModalProps> = ({
                     <ActivityIndicator size="small" color={Colors.rooms.forestGreen} />
                   ) : (
                     <View style={[s.roleBadge, { backgroundColor: badge.bg }]}>
-                      <Text style={s.roleEmoji}>{badge.emoji}</Text>
+                      <Feather name={badge.icon} size={12} color={badge.text} style={{ marginRight: 4 }} />
                       <Text style={[s.roleText, { color: badge.text }]}>
                         {badge.label}
                       </Text>

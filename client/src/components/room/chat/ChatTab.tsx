@@ -594,17 +594,17 @@ export const ChatTab: React.FC<ChatTabProps> = ({ data, onRefresh }) => {
   };
 
   const handleMicPress = () => {
-    Alert.alert('Voice Note', 'Voice notes will be available in an upcoming update! 🎙️');
+    Alert.alert('Voice Note', 'Voice notes will be available in an upcoming update!');
   };
 
   const handlePollPress = () => {
     setShowAttachMenu(false);
-    Alert.alert('Create Poll', 'Group polls & voting will be available in the next release! 📊');
+    Alert.alert('Create Poll', 'Group polls & voting will be available in the next release!');
   };
 
   const handleLocationPress = () => {
     setShowAttachMenu(false);
-    Alert.alert('Share Location', 'Pin-drop & live location sharing will be available in the next release! 📍');
+    Alert.alert('Share Location', 'Pin-drop & live location sharing will be available in the next release!');
   };
 
   /* ─── Toggle reaction ─── */

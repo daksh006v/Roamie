@@ -310,7 +310,7 @@ export const AddPlaceModal: React.FC<AddPlaceModalProps> = ({
       });
 
       const savedPlace: SavedPlace = res.data?.data?.place || res.data?.place;
-      Alert.alert('Spot Pinned! 📍', `"${name.trim()}" has been saved to the trip.`);
+      Alert.alert('Spot Pinned!', `"${name.trim()}" has been saved to the trip.`);
       resetForm();
       onClose();
       if (savedPlace) {

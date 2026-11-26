@@ -161,7 +161,7 @@ export const PinnedMessagesModal: React.FC<PinnedMessagesModalProps> = ({
             }}
             ListEmptyComponent={
               <View style={s.emptyState}>
-                <Text style={s.emptyEmoji}>📌</Text>
+                <Feather name="bookmark" size={36} color="#A8A29E" style={{ marginBottom: 12 }} />
                 <Text style={s.emptyTitle}>No pinned messages</Text>
                 <Text style={s.emptySubtitle}>
                   Long-press any message in the chat and tap "Pin Message" to keep key info handy for everyone.

@@ -378,7 +378,7 @@ export const PlacesListModal: React.FC<PlacesListModalProps> = ({
           {/* Places List or Empty State */}
           {filteredPlaces.length === 0 ? (
             <View style={styles.emptyContainer}>
-              <Text style={styles.emptyEmoji}>🗺️</Text>
+              <Feather name="map" size={38} color={Colors.rooms.mutedText} style={{ marginBottom: 12 }} />
               <Text style={styles.emptyTitle}>
                 {searchQuery ? 'No matching spots' : 'No places saved yet'}
               </Text>

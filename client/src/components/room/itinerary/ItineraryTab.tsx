@@ -363,7 +363,7 @@ export const ItineraryTab: React.FC<ItineraryTabProps> = ({ data, onRefresh }) =
         </View>
       ) : errorMsg && days.length === 0 ? (
         <View style={styles.errorContainer}>
-          <Text style={styles.errorEmoji}>⚠️</Text>
+          <Feather name="alert-triangle" size={36} color={Colors.rooms.planningOrange} style={{ marginBottom: 10 }} />
           <Text style={styles.errorText}>{errorMsg}</Text>
           <TouchableOpacity
             style={styles.retryBtn}

@@ -388,12 +388,12 @@ export const AboutTab: React.FC<AboutTabProps> = ({ data, onRefresh }) => {
                     </View>
                     {isMemberOwner && (
                       <View style={styles.crownBadge}>
-                        <Text style={styles.crownEmoji}>👑</Text>
+                        <Feather name="award" size={11} color="#C96A25" />
                       </View>
                     )}
                     {isMemberAdmin && (
                       <View style={styles.crownBadge}>
-                        <Text style={styles.crownEmoji}>🛡️</Text>
+                        <Feather name="shield" size={11} color="#5F745F" />
                       </View>
                     )}
                   </View>

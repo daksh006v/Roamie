@@ -135,7 +135,7 @@ export const ChatSearchModal: React.FC<ChatSearchModalProps> = ({
                       <Text style={s.timestamp}>{formatTime(item.createdAt)}</Text>
                     </View>
                     <Text style={s.messageContent} numberOfLines={2}>
-                      {item.content || item.text || (item.media?.url ? '📸 Photo' : '')}
+                      {item.content || item.text || (item.media?.url ? 'Photo' : '')}
                     </Text>
                   </View>
 
@@ -146,7 +146,7 @@ export const ChatSearchModal: React.FC<ChatSearchModalProps> = ({
             ListEmptyComponent={
               query.trim().length > 0 ? (
                 <View style={s.emptyState}>
-                  <Text style={s.emptyEmoji}>🔍</Text>
+                  <Feather name="search" size={36} color="#A8A29E" style={{ marginBottom: 12 }} />
                   <Text style={s.emptyTitle}>No messages found</Text>
                   <Text style={s.emptySubtitle}>
                     We couldn't find any message matching "{query}"
@@ -154,7 +154,7 @@ export const ChatSearchModal: React.FC<ChatSearchModalProps> = ({
                 </View>
               ) : (
                 <View style={s.emptyState}>
-                  <Text style={s.emptyEmoji}>💬</Text>
+                  <Feather name="message-circle" size={36} color="#A8A29E" style={{ marginBottom: 12 }} />
                   <Text style={s.emptyTitle}>Search conversation</Text>
                   <Text style={s.emptySubtitle}>
                     Type a keyword, spot name, or traveler name to jump directly to it

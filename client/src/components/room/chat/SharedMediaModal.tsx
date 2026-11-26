@@ -128,7 +128,7 @@ export const SharedMediaModal: React.FC<SharedMediaModalProps> = ({
             )}
             ListEmptyComponent={
               <View style={s.emptyState}>
-                <Text style={s.emptyEmoji}>📁</Text>
+                <Feather name="image" size={36} color="#A8A29E" style={{ marginBottom: 12 }} />
                 <Text style={s.emptyTitle}>No shared media</Text>
                 <Text style={s.emptySubtitle}>
                   Photos and images shared by your group in this trip will be collected here for easy viewing.

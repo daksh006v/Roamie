@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { Feather } from '@expo/vector-icons';
 import { Colors } from '../constants/theme';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
@@ -231,13 +232,18 @@ export default function RoomsScreen() {
         {/* Empty State */}
         {!loading && displayedRooms.length === 0 && (
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyEmoji}>
-              {activeTab === 'invites'
-                ? '💌'
-                : activeTab === 'archived'
-                ? '📦'
-                : '🗺️'}
-            </Text>
+            <Feather
+              name={
+                activeTab === 'invites'
+                  ? 'mail'
+                  : activeTab === 'archived'
+                  ? 'archive'
+                  : 'map'
+              }
+              size={40}
+              color={Colors.rooms.mutedText}
+              style={{ marginBottom: 14 }}
+            />
             <Text style={styles.emptyTitle}>
               {activeTab === 'invites'
                 ? 'No pending invites'

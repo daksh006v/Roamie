@@ -433,7 +433,7 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
       if (!res.data?.success) {
         throw new Error(res.data?.message || 'Failed to add expense');
       }
-      Alert.alert('Expense added ✅', `${draft.title.trim()} — ${formatCurrency(amountNum)}`, [{
+      Alert.alert('Expense added', `${draft.title.trim()} — ${formatCurrency(amountNum)}`, [{
         text: 'Nice',
         onPress: () => {
           onExpenseAdded?.();

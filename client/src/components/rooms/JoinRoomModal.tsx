@@ -248,7 +248,7 @@ export const JoinRoomModal: React.FC<JoinRoomModalProps> = ({
                 />
               ) : (
                 <View style={[styles.previewThumbnail, styles.previewFallbackThumb]}>
-                  <Text style={styles.previewEmoji}>🌴</Text>
+                  <Feather name="compass" size={26} color={Colors.rooms.forestGreen} />
                 </View>
               )}
 

@@ -81,7 +81,7 @@ const getInitials = (name: string): string => {
 };
 
 interface CategoryConfig {
-  icon: string;
+  icon: keyof typeof Ionicons.glyphMap;
   label: string;
   bgColor: string;
   iconColor: string;
@@ -90,49 +90,49 @@ interface CategoryConfig {
 
 const CATEGORY_MAP: Record<string, CategoryConfig> = {
   food: {
-    icon: '🍽️',
+    icon: 'restaurant-outline',
     label: 'Food',
     bgColor: '#FEF3E7',
     iconColor: '#C96A25',
     tagColor: '#FDEBD0',
   },
   stay: {
-    icon: '🏨',
+    icon: 'bed-outline',
     label: 'Stay',
     bgColor: '#E8F0E8',
     iconColor: '#648A62',
     tagColor: '#D5E8D4',
   },
   travel: {
-    icon: '🚗',
+    icon: 'car-outline',
     label: 'Transport',
     bgColor: '#FCE9E9',
     iconColor: '#C97935',
     tagColor: '#F8D7DA',
   },
   transport: {
-    icon: '🚗',
+    icon: 'car-outline',
     label: 'Transport',
     bgColor: '#FCE9E9',
     iconColor: '#C97935',
     tagColor: '#F8D7DA',
   },
   activities: {
-    icon: '🎯',
+    icon: 'compass-outline',
     label: 'Activities',
     bgColor: '#E8F0F8',
     iconColor: '#5F745F',
     tagColor: '#D4E6F1',
   },
   shopping: {
-    icon: '🛍️',
+    icon: 'bag-outline',
     label: 'Shopping',
     bgColor: '#F8E8F0',
     iconColor: '#E18A3A',
     tagColor: '#F5D5E8',
   },
   other: {
-    icon: '💱',
+    icon: 'ellipsis-horizontal-circle-outline',
     label: 'Other',
     bgColor: '#F0EDE5',
     iconColor: '#59615A',

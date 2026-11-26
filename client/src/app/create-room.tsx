@@ -235,7 +235,7 @@ export default function CreateRoomScreen() {
           <View style={styles.fieldSection}>
             <Text style={styles.fieldLabel}>Room Name</Text>
             <View style={styles.inputContainer}>
-              <Text style={styles.inputIconEmoji}>⛺</Text>
+              <Feather name="compass" size={17} color={Colors.rooms.forestGreen} style={styles.inputIcon} />
               <TextInput
                 style={styles.textInput}
                 placeholder="e.g. Goa '26"

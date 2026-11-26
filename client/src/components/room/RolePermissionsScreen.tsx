@@ -311,7 +311,8 @@ export const RolePermissionsScreen: React.FC<RolePermissionsScreenProps> = ({
                 <View style={s.roleSelectorRow}>
                   {(['owner', 'admin', 'member'] as const).map((r) => {
                     const isSelected = selectedRoleToColor === r;
-                    const roleName = r === 'owner' ? '👑 Owner' : r === 'admin' ? '🛡️ Admin' : '👤 Member';
+                    const roleName = r === 'owner' ? 'Owner' : r === 'admin' ? 'Admin' : 'Member';
+                    const roleIcon = r === 'owner' ? 'award' : r === 'admin' ? 'shield' : 'user';
                     return (
                       <TouchableOpacity
                         key={r}
@@ -320,6 +321,7 @@ export const RolePermissionsScreen: React.FC<RolePermissionsScreenProps> = ({
                         activeOpacity={0.8}
                       >
                         <View style={[s.colorDot, { backgroundColor: roleColors[r] }]} />
+                        <Feather name={roleIcon} size={12} color={isSelected ? '#FFFDF9' : '#59615A'} />
                         <Text style={[s.roleSelectText, isSelected && s.roleSelectTextActive]}>{roleName}</Text>
                       </TouchableOpacity>
                     );
@@ -390,7 +392,7 @@ export const RolePermissionsScreen: React.FC<RolePermissionsScreenProps> = ({
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                         <Text style={[s.previewUsername, { color: roleColors.member }]}>Pal</Text>
                       </View>
-                      <Text style={s.previewMsgText}>Super excited for this trip! 🏖️</Text>
+                      <Text style={s.previewMsgText}>Super excited for this trip!</Text>
                     </View>
                   </View>
                 </View>
