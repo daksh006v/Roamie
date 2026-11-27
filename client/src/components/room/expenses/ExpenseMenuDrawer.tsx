@@ -119,8 +119,10 @@ export const ExpenseMenuDrawer: React.FC<ExpenseMenuDrawerProps> = ({
     () =>
       myRelevantExpenses.reduce<Record<string, number>>((totals, expense) => {
         const category = expense.category || 'other';
-        const shareAmount = expense.userShare ?? expense.amount;
-        totals[category] = (totals[category] || 0) + shareAmount;
+        const shareAmount = expense.userShare ?? 0;
+        if (shareAmount > 0) {
+          totals[category] = Math.round(((totals[category] || 0) + shareAmount) * 100) / 100;
+        }
         return totals;
       }, {}),
     [myRelevantExpenses]

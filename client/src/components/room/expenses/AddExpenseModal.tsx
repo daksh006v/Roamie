@@ -296,10 +296,11 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
           Alert.alert('Permission needed', 'Camera permission is required to take a photo of the receipt.');
           return false;
         }
+        return true;
       }
       const libPerm = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!libPerm.granted) {
-        Alert.alert('Permission needed', 'Library access is required to pick a photo.');
+        Alert.alert('Permission needed', 'Photo library access is required to choose a receipt.');
         return false;
       }
       return true;
@@ -316,7 +317,7 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
     if (!ok) return;
     try {
       const opts: ImagePicker.ImagePickerOptions = {
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ['images'],
         allowsMultipleSelection: source === 'gallery',
         quality: 0.78,
         selectionLimit: source === 'gallery' ? 10 : 1,
@@ -378,11 +379,12 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
           timeout: 60000,
         });
         const list = res?.data?.data?.media || [];
-        if (list && list.length > 0) {
-          const first = list[0];
-          const url = first.url || first.secureUrl || first.uri;
-          if (url) uploadedUrls.push(url);
+        const first = list[0];
+        const url = first?.storageUrl || first?.thumbnailUrl || first?.url || first?.secureUrl || first?.uri;
+        if (!url) {
+          throw new Error('Server did not return a receipt URL');
         }
+        uploadedUrls.push(url);
         setDraft((prev) => {
           const next = [...prev.pendingReceipts];
           next[i] = { ...next[i], uploading: false };
@@ -395,6 +397,7 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
           next[i] = { ...next[i], uploading: false, uploadError: true };
           return { ...prev, pendingReceipts: next };
         });
+        throw new Error(err?.response?.data?.message || err?.message || 'Receipt upload failed');
       }
     }
     return uploadedUrls;
@@ -966,7 +969,7 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
                               onPress={() => pickReceipt('gallery')}
                             >
                               <Feather name="image" size={14} color="#3F6B52" />
-                              <Text style={styles.receiptBtnSecondaryText}>Gallery</Text>
+                              <Text style={styles.receiptBtnSecondaryText}>Local Photos</Text>
                             </TouchableOpacity>
                           </View>
 

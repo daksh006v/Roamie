@@ -355,31 +355,73 @@ export const ExpenseDetailsModal: React.FC<ExpenseDetailsModalProps> = ({
     }
   };
 
-  const pickEditReceipt = async () => {
+  const launchReceiptPicker = async (source: 'camera' | 'gallery') => {
     try {
-      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!permission.granted) {
-        Alert.alert('Permission needed', 'Library access is required to add a receipt.');
+      if (source === 'camera') {
+        const camPerm = await ImagePicker.requestCameraPermissionsAsync();
+        if (!camPerm.granted) {
+          Alert.alert('Permission needed', 'Camera permission is required to take a receipt photo.');
+          return;
+        }
+      } else {
+        const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!permission.granted) {
+          Alert.alert('Permission needed', 'Photo library access is required to choose a receipt.');
+          return;
+        }
+      }
+
+      const opts: ImagePicker.ImagePickerOptions = {
+        mediaTypes: ['images'],
+        quality: 0.78,
+        allowsMultipleSelection: source === 'gallery',
+        selectionLimit: source === 'gallery' ? Math.max(1, 10 - editReceiptUrls.length) : 1,
+        exif: false,
+      };
+      const result =
+        source === 'camera'
+          ? await ImagePicker.launchCameraAsync({ ...opts, allowsMultipleSelection: false })
+          : await ImagePicker.launchImageLibraryAsync(opts);
+
+      if (result.canceled || !result.assets?.length) return;
+
+      const uploadedUrls: string[] = [];
+      for (let i = 0; i < result.assets.length; i++) {
+        const asset = result.assets[i];
+        if (!asset?.uri) continue;
+        const filename = asset.uri.split('/').pop() || `receipt_${Date.now()}_${i}.jpg`;
+        const match = /\.(\w+)$/.exec(filename);
+        const ext = match ? match[1].toLowerCase() : 'jpg';
+        const mime = ext === 'png' ? 'image/png' : 'image/jpeg';
+        const form = new FormData();
+        form.append('images', { uri: asset.uri, name: filename, type: mime } as any);
+        form.append('mediaType', 'receipt');
+        const response = await api.post(`/rooms/${roomId}/media`, form, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+          timeout: 60000,
+        });
+        const uploaded = response.data?.data?.media?.[0];
+        const url =
+          uploaded?.storageUrl || uploaded?.thumbnailUrl || uploaded?.url || uploaded?.secureUrl || uploaded?.uri;
+        if (url) uploadedUrls.push(url);
+      }
+
+      if (uploadedUrls.length === 0) {
+        Alert.alert('Could not add receipt', 'Upload failed. Please try again.');
         return;
       }
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        quality: 0.78,
-        selectionLimit: 1,
-      });
-      if (result.canceled || !result.assets[0]?.uri) return;
-      const asset = result.assets[0];
-      const filename = asset.uri.split('/').pop() || `receipt_${Date.now()}.jpg`;
-      const form = new FormData();
-      form.append('images', { uri: asset.uri, name: filename, type: 'image/jpeg' } as any);
-      form.append('mediaType', 'receipt');
-      const response = await api.post(`/rooms/${roomId}/media`, form, { headers: { 'Content-Type': 'multipart/form-data' } });
-      const uploaded = response.data?.data?.media?.[0];
-      const url = uploaded?.url || uploaded?.secureUrl || uploaded?.uri;
-      if (url) setEditReceiptUrls([url]);
-    } catch (error) {
-      Alert.alert('Could not add receipt', 'Please try again.');
+      setEditReceiptUrls((prev) => [...prev, ...uploadedUrls].slice(0, 10));
+    } catch (error: any) {
+      Alert.alert('Could not add receipt', error?.response?.data?.message || 'Please try again.');
     }
+  };
+
+  const pickEditReceipt = () => {
+    Alert.alert('Add Receipt', 'Choose how you want to add a receipt photo', [
+      { text: 'Take Photo (Camera)', onPress: () => launchReceiptPicker('camera') },
+      { text: 'Local Photos', onPress: () => launchReceiptPicker('gallery') },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
   };
 
   const deleteExpense = () => {
@@ -611,16 +653,38 @@ export const ExpenseDetailsModal: React.FC<ExpenseDetailsModalProps> = ({
         multiline
         maxLength={250}
       />
-      <Text style={styles.editFieldLabel}>Receipt</Text>
+      <Text style={styles.editFieldLabel}>Receipts</Text>
       {editReceiptUrls.length > 0 ? (
         <View style={styles.editReceiptRow}>
-          <ExpoImage source={{ uri: editReceiptUrls[0] }} style={styles.editReceiptThumb} contentFit="cover" />
-          <TouchableOpacity style={styles.receiptActionButton} onPress={pickEditReceipt}>
-            <Text style={styles.receiptActionText}>Replace</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.receiptActionButton} onPress={() => setEditReceiptUrls([])}>
-            <Text style={styles.receiptRemoveText}>Remove</Text>
-          </TouchableOpacity>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, alignItems: 'center' }}>
+            {editReceiptUrls.map((uri, idx) => (
+              <View key={`${uri}-${idx}`} style={{ position: 'relative' }}>
+                <ExpoImage source={{ uri }} style={styles.editReceiptThumb} contentFit="cover" />
+                <TouchableOpacity
+                  style={{
+                    position: 'absolute',
+                    top: -5,
+                    right: -5,
+                    width: 18,
+                    height: 18,
+                    borderRadius: 9,
+                    backgroundColor: '#243C32',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                  onPress={() => setEditReceiptUrls((prev) => prev.filter((_, i) => i !== idx))}
+                >
+                  <Feather name="x" size={11} color="#FFFFFF" />
+                </TouchableOpacity>
+              </View>
+            ))}
+            {editReceiptUrls.length < 10 && (
+              <TouchableOpacity style={styles.addReceiptButton} onPress={pickEditReceipt}>
+                <Feather name="plus" size={15} color="#3F6B52" />
+                <Text style={styles.addTagText}>Add</Text>
+              </TouchableOpacity>
+            )}
+          </ScrollView>
         </View>
       ) : (
         <TouchableOpacity style={styles.addReceiptButton} onPress={pickEditReceipt}>

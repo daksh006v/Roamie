@@ -98,17 +98,22 @@ const calculateRoomBalances = async (roomId, currentUserId) => {
 
   const totalSpent = expenses.reduce((sum, exp) => sum + exp.amount, 0);
   const currentUserIdStr = currentUserId ? currentUserId.toString() : '';
-  const currentUserNet = userBalances[currentUserIdStr] || 0;
+  const rawCurrentUserNet = userBalances[currentUserIdStr] || 0;
+  const currentUserNet = Math.abs(rawCurrentUserNet) <= 0.01 ? 0 : Math.round(rawCurrentUserNet * 100) / 100;
 
   // Breakdown array for UI
-  const breakdown = Object.keys(memberMap).map((uid) => ({
-    user: memberMap[uid],
-    totalPaid: Math.round((userTotalPaid[uid] || 0) * 100) / 100,
-    totalOwed: Math.round((userTotalOwed[uid] || 0) * 100) / 100,
-    netBalance: Math.round((userBalances[uid] || 0) * 100) / 100,
-    outstandingBalance: Math.round((userBalances[uid] || 0) * 100) / 100,
-    status: (userBalances[uid] || 0) > 0 ? 'owed' : (userBalances[uid] || 0) < 0 ? 'owes' : 'settled',
-  }));
+  const breakdown = Object.keys(memberMap).map((uid) => {
+    const rawNet = userBalances[uid] || 0;
+    const net = Math.abs(rawNet) <= 0.01 ? 0 : Math.round(rawNet * 100) / 100;
+    return {
+      user: memberMap[uid],
+      totalPaid: Math.round((userTotalPaid[uid] || 0) * 100) / 100,
+      totalOwed: Math.round((userTotalOwed[uid] || 0) * 100) / 100,
+      netBalance: net,
+      outstandingBalance: net,
+      status: net > 0.01 ? 'owed' : net < -0.01 ? 'owes' : 'settled',
+    };
+  });
 
   // Simplified pairwise settlements algorithm
   const debtors = [];
@@ -168,8 +173,8 @@ const calculateRoomBalances = async (roomId, currentUserId) => {
 
   return {
     totalSpent: Math.round(totalSpent * 100) / 100,
-    currentUserNet: Math.round(currentUserNet * 100) / 100,
-    currentUserStatus: currentUserNet > 0 ? 'owed' : currentUserNet < 0 ? 'owes' : 'settled',
+    currentUserNet,
+    currentUserStatus: currentUserNet > 0.01 ? 'owed' : currentUserNet < -0.01 ? 'owes' : 'settled',
     breakdown,
     settlements,
     settledHistory,

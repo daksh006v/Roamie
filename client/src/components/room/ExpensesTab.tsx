@@ -322,8 +322,8 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({ data, onRefresh }) => 
   const userPaid = currentBalance?.totalPaid || 0;
   const userShare = currentBalance?.totalOwed || 0;
   const userNet = currentBalance?.netBalance || 0;
-  const userImpactLabel = userNet < 0 ? 'You owe' : userNet > 0 ? "You're owed" : 'Settled';
-  const userRemaining = Math.abs(userNet);
+  const userImpactLabel = Math.abs(userNet) <= 0.01 ? 'Settled' : userNet < 0 ? 'You owe' : "You're owed";
+  const userRemaining = Math.abs(userNet) <= 0.01 ? 0 : Math.abs(userNet);
 
   useEffect(() => {
     let mounted = true;

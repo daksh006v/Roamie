@@ -55,6 +55,27 @@ const tagToCategory = (tags) => {
   return bestCat;
 };
 
+const round2 = (n) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
+
+/**
+ * Splits totalAmount equally across unique memberIds in integer paise/cents
+ * so the sum of all split amounts equals totalAmount exactly (no 0.01 drift).
+ */
+const buildEqualSplitDocs = (expenseId, roomId, totalAmount, memberIds) => {
+  const uniqueIds = [...new Set(memberIds.map((id) => id.toString()))];
+  if (uniqueIds.length === 0) return [];
+  const totalCents = Math.round(Number(totalAmount) * 100);
+  const baseCents = Math.floor(totalCents / uniqueIds.length);
+  const remainder = totalCents - baseCents * uniqueIds.length;
+  return uniqueIds.map((userId, index) => ({
+    expenseId,
+    roomId,
+    userId,
+    amount: (baseCents + (index < remainder ? 1 : 0)) / 100,
+    isSettled: false,
+  }));
+};
+
 // @desc    Add a new expense in a room
 // @route   POST /api/rooms/:roomId/expenses
 // @access  Private (Room Member)
@@ -96,10 +117,28 @@ const addExpense = async (req, res) => {
       ? receiptUrls.filter((u) => typeof u === 'string' && u.trim().length > 0).slice(0, 10)
       : receiptUrl ? [receiptUrl] : [];
 
+    // Validate split participants before creating expense
+    const roomMemberIds = new Set(
+      (await RoomMember.find({ roomId }).select('userId').lean()).map((m) => m.userId.toString())
+    );
+    if (Array.isArray(splits) && splits.length > 0) {
+      const splitTotal = splits.reduce((sum, s) => sum + Number(s.amount || 0), 0);
+      if (
+        splits.some((s) => !roomMemberIds.has(s.userId?.toString()) || !Number.isFinite(Number(s.amount)) || Number(s.amount) < 0) ||
+        Math.abs(splitTotal - Number(amount)) > 0.01
+      ) {
+        return sendError(res, 'Custom split amounts must belong to room members and equal the expense total', 400);
+      }
+    } else if (Array.isArray(splitMembers) && splitMembers.length > 0) {
+      if (splitMembers.some((uid) => !roomMemberIds.has(uid.toString()))) {
+        return sendError(res, 'Every split participant must be an active room member', 400);
+      }
+    }
+
     const expense = await Expense.create({
       roomId,
       title: title.trim(),
-      amount: Number(amount),
+      amount: round2(Number(amount)),
       currency: currency || 'INR',
       category: derivedCategory,
       paidBy: payerId,
@@ -114,36 +153,29 @@ const addExpense = async (req, res) => {
 
     if (Array.isArray(splits) && splits.length > 0) {
       // Explicit custom split shares provided
-      const splitDocs = splits.map((s) => ({
-        expenseId: expense._id,
-        roomId,
-        userId: s.userId,
-        amount: Number(s.amount),
-        isSettled: false,
-      }));
+      const splitDocs = splits
+        .filter((s) => Number(s.amount) > 0)
+        .map((s) => ({
+          expenseId: expense._id,
+          roomId,
+          userId: s.userId,
+          amount: round2(Number(s.amount)),
+          isSettled: false,
+        }));
       createdSplits = await ExpenseSplit.insertMany(splitDocs);
     } else if (Array.isArray(splitMembers) && splitMembers.length > 0) {
-      // Auto equal split among selected members
-      const splitAmount = Math.round((Number(amount) / splitMembers.length) * 100) / 100;
-      const splitDocs = splitMembers.map((userId) => ({
-        expenseId: expense._id,
-        roomId,
-        userId,
-        amount: splitAmount,
-        isSettled: false,
-      }));
+      // Exact equal split among selected members
+      const splitDocs = buildEqualSplitDocs(expense._id, roomId, amount, splitMembers);
       createdSplits = await ExpenseSplit.insertMany(splitDocs);
     } else {
-      // Default: Split equally among ALL room members
-      const allMembers = await RoomMember.find({ roomId });
-      const splitAmount = Math.round((Number(amount) / allMembers.length) * 100) / 100;
-      const splitDocs = allMembers.map((m) => ({
-        expenseId: expense._id,
+      // Default: Exact equal split among ALL room members
+      const allMembers = await RoomMember.find({ roomId }).select('userId').lean();
+      const splitDocs = buildEqualSplitDocs(
+        expense._id,
         roomId,
-        userId: m.userId,
-        amount: splitAmount,
-        isSettled: false,
-      }));
+        amount,
+        allMembers.map((m) => m.userId)
+      );
       createdSplits = await ExpenseSplit.insertMany(splitDocs);
     }
 
@@ -238,14 +270,35 @@ const getExpenses = async (req, res) => {
       query.category = category;
     }
 
-    const expenseDocs = await Expense.find(query)
-      .sort({ createdAt: -1 })
-      .populate('paidBy', 'name email avatar');
+    const [expenseDocs, allSplits] = await Promise.all([
+      Expense.find(query)
+        .sort({ createdAt: -1 })
+        .populate('paidBy', 'name email avatar'),
+      ExpenseSplit.find({ roomId }).select('expenseId userId amount').lean(),
+    ]);
+
+    const currentUserIdStr = req.user._id.toString();
+    const splitStatsByExpense = new Map();
+    for (const s of allSplits) {
+      const expId = s.expenseId.toString();
+      const entry = splitStatsByExpense.get(expId) || { count: 0, userShare: 0 };
+      entry.count += 1;
+      if (s.userId && s.userId.toString() === currentUserIdStr) {
+        entry.userShare = round2(entry.userShare + Number(s.amount || 0));
+      }
+      splitStatsByExpense.set(expId, entry);
+    }
 
     const expenses = expenseDocs.map((expense) => {
       const item = expense.toObject();
       delete item.comments;
-      return { ...item, commentCount: expense.comments?.length || 0 };
+      const stats = splitStatsByExpense.get(expense._id.toString()) || { count: 0, userShare: 0 };
+      return {
+        ...item,
+        commentCount: expense.comments?.length || 0,
+        splitCount: stats.count,
+        userShare: stats.userShare,
+      };
     });
     const totalSpent = expenseDocs.reduce((sum, exp) => sum + exp.amount, 0);
 
@@ -405,7 +458,11 @@ const settleSettlement = async (req, res) => {
       return sendError(res, 'Settlement participants do not have an outstanding debt', 400);
     }
     const allowedAmount = Math.min(Math.abs(debtor.outstandingBalance), creditor.outstandingBalance);
-    if (Math.abs(allowedAmount - remainingAmount) > 0.01) {
+    const matchingSimplified = balances.settlements.find(
+      (s) => s.from._id.toString() === fromUserId.toString() && s.to._id.toString() === toUserId.toString()
+    );
+    const maxValidAmount = matchingSimplified ? matchingSimplified.amount : allowedAmount;
+    if (remainingAmount <= 0 || (remainingAmount > allowedAmount + 0.01 && Math.abs(maxValidAmount - remainingAmount) > 0.01)) {
       return sendError(res, 'Settlement amount does not match the current outstanding debt', 400);
     }
 
@@ -623,36 +680,35 @@ const editExpense = async (req, res) => {
       }
     }
 
-    const newAmount = amount !== undefined ? Number(amount) : expense.amount;
+    const newAmount = amount !== undefined ? round2(Number(amount)) : expense.amount;
     if (!isNaN(newAmount) && newAmount > 0) {
       expense.amount = newAmount;
       const currentSplits = await ExpenseSplit.find({ expenseId });
       if (Array.isArray(splits) && splits.length > 0) {
-        const splitDocs = splits.map((split) => ({
-          expenseId,
-          roomId,
-          userId: split.userId,
-          amount: Number(split.amount),
-          isSettled: false,
-        }));
+        const splitDocs = splits
+          .filter((split) => Number(split.amount) > 0)
+          .map((split) => ({
+            expenseId,
+            roomId,
+            userId: split.userId,
+            amount: round2(Number(split.amount)),
+            isSettled: false,
+          }));
         await ExpenseSplit.deleteMany({ expenseId });
         await ExpenseSplit.insertMany(splitDocs);
       } else if (Array.isArray(splitMembers) && splitMembers.length > 0) {
-        const equalShare = Math.round((newAmount / splitMembers.length) * 100) / 100;
+        const splitDocs = buildEqualSplitDocs(expenseId, roomId, newAmount, splitMembers);
         await ExpenseSplit.deleteMany({ expenseId });
-        await ExpenseSplit.insertMany(splitMembers.map((userId) => ({
+        await ExpenseSplit.insertMany(splitDocs);
+      } else if (currentSplits && currentSplits.length > 0) {
+        const splitDocs = buildEqualSplitDocs(
           expenseId,
           roomId,
-          userId,
-          amount: equalShare,
-          isSettled: false,
-        })));
-      } else if (currentSplits && currentSplits.length > 0) {
-        const equalShare = Math.round((newAmount / currentSplits.length) * 100) / 100;
-        for (const s of currentSplits) {
-          s.amount = equalShare;
-          await s.save();
-        }
+          newAmount,
+          currentSplits.map((s) => s.userId)
+        );
+        await ExpenseSplit.deleteMany({ expenseId });
+        await ExpenseSplit.insertMany(splitDocs);
       }
     }
 
