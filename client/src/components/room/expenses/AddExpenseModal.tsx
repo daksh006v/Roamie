@@ -961,7 +961,7 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
                               onPress={() => pickReceipt('camera')}
                             >
                               <Feather name="camera" size={14} color="#FFFFFF" />
-                              <Text style={styles.receiptBtnPrimaryText}>Take Photo</Text>
+                              <Text style={styles.receiptBtnPrimaryText}>Camera</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
                               style={styles.receiptBtnSecondary}
@@ -969,7 +969,7 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
                               onPress={() => pickReceipt('gallery')}
                             >
                               <Feather name="image" size={14} color="#3F6B52" />
-                              <Text style={styles.receiptBtnSecondaryText}>Local Photos</Text>
+                              <Text style={styles.receiptBtnSecondaryText}>Photos</Text>
                             </TouchableOpacity>
                           </View>
 

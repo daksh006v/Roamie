@@ -755,7 +755,20 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({ data, onRefresh }) => 
             </View>
 
             <View style={styles.overallDebtCard}>
-              <Text style={styles.overallDebtTitle}>
+              <Text style={styles.overallDebtEyebrow}>OVERALL BALANCE</Text>
+              <Text
+                style={[
+                  styles.overallDebtTitle,
+                  {
+                    color:
+                      userNet < -0.01
+                        ? Colors.rooms.burntOrange
+                        : userNet > 0.01
+                        ? Colors.rooms.forestGreen
+                        : Colors.rooms.darkText,
+                  },
+                ]}
+              >
                 {userNet < -0.01
                   ? `You owe ${formatCurrencyWithDecimals(Math.abs(userNet))} overall`
                   : userNet > 0.01
@@ -800,7 +813,7 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({ data, onRefresh }) => 
                             {getInitials(otherName)}
                           </Text>
                         </View>
-                        <Text style={styles.settlementUserName} numberOfLines={1}>
+                        <Text style={styles.settlementUserName}>
                           {iOwe ? `You owe ${otherName}` : `${otherName} owes you`}
                         </Text>
                       </View>
@@ -1331,15 +1344,22 @@ const styles = StyleSheet.create({
   },
   overallDebtCard: {
     backgroundColor: '#FFFDF8',
-    borderRadius: 12,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: '#E8DDCC',
-    paddingVertical: 11,
-    paddingHorizontal: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
     marginBottom: 10,
   },
+  overallDebtEyebrow: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+    color: Colors.rooms.mutedText,
+    marginBottom: 4,
+  },
   overallDebtTitle: {
-    fontSize: 14.5,
+    fontSize: 19,
     fontWeight: '800',
     color: Colors.rooms.darkText,
   },
@@ -1347,18 +1367,19 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.rooms.cardCream,
     borderRadius: 14,
     paddingHorizontal: CARD_PADDING,
-    paddingVertical: Spacing.sm,
+    paddingVertical: 12,
     borderWidth: 1,
     borderColor: Colors.rooms.sandBorder,
     flexDirection: 'row',
-    flexWrap: 'wrap',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: 10,
   },
   settlementUsers: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
+    gap: 10,
   },
   settlementAvatar: {
     width: 30,
@@ -1373,11 +1394,10 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   settlementUserName: {
-    fontSize: 12.5,
-    fontWeight: '700',
+    fontSize: 14,
+    fontWeight: '600',
     color: Colors.rooms.darkText,
-    marginHorizontal: 6,
-    maxWidth: width * 0.18,
+    flex: 1,
   },
   settlementArrow: {
     marginHorizontal: 2,
@@ -1386,9 +1406,10 @@ const styles = StyleSheet.create({
   settlementRight: {
     flexDirection: 'row',
     alignItems: 'center',
+    flexShrink: 0,
   },
   settlementAmount: {
-    fontSize: 13.5,
+    fontSize: 14.5,
     fontWeight: '800',
     color: Colors.rooms.darkText,
   },

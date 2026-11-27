@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Modal,
   View,
@@ -128,10 +128,37 @@ export const ExpenseMenuDrawer: React.FC<ExpenseMenuDrawerProps> = ({
     [myRelevantExpenses]
   );
 
-  const receiptExpenses = useMemo(
-    () => expenses.filter((expense) => expense.receiptUrl || expense.receiptUrls?.length),
-    [expenses]
-  );
+  const receiptItems = useMemo(() => {
+    const items: { key: string; url: string; expense: ExpenseItem }[] = [];
+    expenses.forEach((expense) => {
+      const urls =
+        expense.receiptUrls && expense.receiptUrls.length > 0
+          ? expense.receiptUrls
+          : expense.receiptUrl
+          ? [expense.receiptUrl]
+          : [];
+      urls.forEach((url, idx) => {
+        if (url && url.trim()) {
+          items.push({ key: `${expense._id}-${idx}`, url, expense });
+        }
+      });
+    });
+    return items;
+  }, [expenses]);
+
+  useEffect(() => {
+    if (visible && activeView === 'receipts' && receiptItems.length > 0) {
+      const prefetchUrls = receiptItems
+        .slice(0, 12)
+        .map((item) =>
+          getOptimizedImageUrl(item.url, { width: 240, height: 240, crop: 'fill' })
+        )
+        .filter(Boolean);
+      if (prefetchUrls.length > 0) {
+        ExpoImage.prefetch(prefetchUrls).catch(() => {});
+      }
+    }
+  }, [visible, activeView, receiptItems]);
 
   const goBack = () => (activeView === 'menu' ? onClose() : setActiveView('menu'));
   const title =
@@ -441,21 +468,22 @@ export const ExpenseMenuDrawer: React.FC<ExpenseMenuDrawerProps> = ({
       );
     }
 
-    return receiptExpenses.length > 0 ? (
+    return receiptItems.length > 0 ? (
       <View style={styles.receiptGrid}>
-        {receiptExpenses.map((expense) => {
-          const uri = getOptimizedImageUrl(expense.receiptUrls?.[0] || expense.receiptUrl, {
-            width: 350,
-            height: 350,
+        {receiptItems.map((item) => {
+          const uri = getOptimizedImageUrl(item.url, {
+            width: 240,
+            height: 240,
             crop: 'fill',
           });
           return (
-            <TouchableOpacity key={expense._id} onPress={() => onExpensePress(expense)}>
+            <TouchableOpacity key={item.key} onPress={() => onExpensePress(item.expense)} activeOpacity={0.8}>
               <ExpoImage
                 source={{ uri }}
                 style={styles.receiptTile}
                 contentFit="cover"
                 cachePolicy="memory-disk"
+                transition={100}
               />
             </TouchableOpacity>
           );

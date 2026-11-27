@@ -21,6 +21,7 @@ import { Colors, Spacing, Shadows } from '../../../constants/theme';
 import { RoomDetailsData } from '../../../types/room';
 import { SettlementUser } from '../ExpensesTab';
 import api from '../../../services/api';
+import { getOptimizedImageUrl } from '../../../utils/imageOptimizer';
 import { getTagConfig, getIconForTags, tagToCategory, TAG_PRESETS } from './tagConfig';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -104,6 +105,7 @@ export const ExpenseDetailsModal: React.FC<ExpenseDetailsModalProps> = ({
   const [submittingEdit, setSubmittingEdit] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [tagPickerVisible, setTagPickerVisible] = useState(false);
+  const [receiptSourceVisible, setReceiptSourceVisible] = useState(false);
   const [paidByOpen, setPaidByOpen] = useState(false);
   const [splitEveryone, setSplitEveryone] = useState(false);
   const [splitMode, setSplitMode] = useState<'equal' | 'custom'>('equal');
@@ -417,11 +419,7 @@ export const ExpenseDetailsModal: React.FC<ExpenseDetailsModalProps> = ({
   };
 
   const pickEditReceipt = () => {
-    Alert.alert('Add Receipt', 'Choose how you want to add a receipt photo', [
-      { text: 'Take Photo (Camera)', onPress: () => launchReceiptPicker('camera') },
-      { text: 'Local Photos', onPress: () => launchReceiptPicker('gallery') },
-      { text: 'Cancel', style: 'cancel' },
-    ]);
+    setReceiptSourceVisible(true);
   };
 
   const deleteExpense = () => {
@@ -659,7 +657,13 @@ export const ExpenseDetailsModal: React.FC<ExpenseDetailsModalProps> = ({
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, alignItems: 'center' }}>
             {editReceiptUrls.map((uri, idx) => (
               <View key={`${uri}-${idx}`} style={{ position: 'relative' }}>
-                <ExpoImage source={{ uri }} style={styles.editReceiptThumb} contentFit="cover" />
+                <ExpoImage
+                  source={{ uri: getOptimizedImageUrl(uri, { width: 160, height: 160, crop: 'fill' }) }}
+                  style={styles.editReceiptThumb}
+                  contentFit="cover"
+                  cachePolicy="memory-disk"
+                  transition={100}
+                />
                 <TouchableOpacity
                   style={{
                     position: 'absolute',
@@ -954,9 +958,11 @@ export const ExpenseDetailsModal: React.FC<ExpenseDetailsModalProps> = ({
                         {allReceipts.map((uri, i) => (
                           <View key={i} style={styles.receiptImageTile}>
                             <ExpoImage
-                              source={{ uri }}
+                              source={{ uri: getOptimizedImageUrl(uri, { width: 280, height: 280, crop: 'fill' }) }}
                               style={{ width: '100%', height: '100%', borderRadius: 14 }}
                               contentFit="cover"
+                              cachePolicy="memory-disk"
+                              transition={100}
                             />
                           </View>
                         ))}
@@ -1126,6 +1132,77 @@ export const ExpenseDetailsModal: React.FC<ExpenseDetailsModalProps> = ({
             </TouchableOpacity>
           </View>
         </View>
+      </Modal>
+      <Modal
+        visible={receiptSourceVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setReceiptSourceVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.tagPickerOverlay}
+          activeOpacity={1}
+          onPress={() => setReceiptSourceVisible(false)}
+        >
+          <View style={styles.tagPickerSheet}>
+            <View style={styles.tagPickerHeader}>
+              <Text style={styles.editSectionTitle}>Add Receipt</Text>
+              <TouchableOpacity onPress={() => setReceiptSourceVisible(false)}>
+                <Feather name="x" size={20} color="#59615A" />
+              </TouchableOpacity>
+            </View>
+            <View style={{ gap: 10 }}>
+              <TouchableOpacity
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 12,
+                  paddingVertical: 14,
+                  paddingHorizontal: 14,
+                  borderRadius: 12,
+                  backgroundColor: '#F5EFE3',
+                }}
+                activeOpacity={0.78}
+                onPress={() => {
+                  setReceiptSourceVisible(false);
+                  launchReceiptPicker('camera');
+                }}
+              >
+                <View style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: '#3F6B52', alignItems: 'center', justifyContent: 'center' }}>
+                  <Feather name="camera" size={18} color="#FFFFFF" />
+                </View>
+                <View>
+                  <Text style={{ fontSize: 15, fontWeight: '700', color: '#243C32' }}>Camera</Text>
+                  <Text style={{ fontSize: 12, color: '#7B6F5B', marginTop: 1 }}>Take a photo now</Text>
+                </View>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 12,
+                  paddingVertical: 14,
+                  paddingHorizontal: 14,
+                  borderRadius: 12,
+                  backgroundColor: '#F5EFE3',
+                }}
+                activeOpacity={0.78}
+                onPress={() => {
+                  setReceiptSourceVisible(false);
+                  launchReceiptPicker('gallery');
+                }}
+              >
+                <View style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: '#E6EEE6', alignItems: 'center', justifyContent: 'center' }}>
+                  <Feather name="image" size={18} color="#3F6B52" />
+                </View>
+                <View>
+                  <Text style={{ fontSize: 15, fontWeight: '700', color: '#243C32' }}>Photos</Text>
+                  <Text style={{ fontSize: 12, color: '#7B6F5B', marginTop: 1 }}>Choose from device</Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </TouchableOpacity>
       </Modal>
     </>
   );
