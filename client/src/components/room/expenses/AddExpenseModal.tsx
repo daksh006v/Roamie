@@ -591,7 +591,7 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
                         }}
                       >
                         <View style={[styles.inputIconPill, { backgroundColor: '#FCE9E2' }]}>
-                          <Feather name="dollar-sign" size={16} color="#B7602C" />
+                          <Text style={{ fontSize: 15, fontWeight: '800', color: '#B7602C' }}>₹</Text>
                         </View>
                         <View style={{ flex: 1, marginLeft: 10 }}>
                           <Text style={styles.paidByDropdownText}>
