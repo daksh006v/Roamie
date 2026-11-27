@@ -274,7 +274,8 @@ export const GalleryTab: React.FC<GalleryTabProps> = ({ data, onRefresh }) => {
           onPress={handleUploadPress}
           activeOpacity={0.88}
         >
-          <Feather name="camera" size={24} color="#FFFFFF" />
+          <Feather name="camera" size={20} color="#FFFDF9" />
+          <Text style={styles.fabText}>Add Photo</Text>
         </TouchableOpacity>
       )}
 
@@ -391,20 +392,25 @@ const styles = StyleSheet.create({
   },
   fab: {
     position: 'absolute',
-    bottom: 22,
+    bottom: 28,
     right: 20,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: Colors.rooms.burntOrange,
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: Colors.rooms.burntOrange,
+    gap: 6,
+    backgroundColor: '#243C32',
+    borderRadius: 28,
+    paddingVertical: 13,
+    paddingHorizontal: 20,
+    shadowColor: '#1a2e25',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 8,
-    elevation: 6,
-    borderWidth: 2,
-    borderColor: '#FFFDF9',
+    shadowOpacity: 0.28,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  fabText: {
+    color: '#FFFDF9',
+    fontSize: 14.5,
+    fontWeight: '800',
+    letterSpacing: 0.2,
   },
 });

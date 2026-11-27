@@ -467,7 +467,7 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({ data, onRefresh }) => 
             onPress={handleBackPress}
             hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           >
-            <Feather name="chevron-left" size={26} color="#243C32" />
+            <Feather name="chevron-left" size={24} color="#243C32" />
           </TouchableOpacity>
 
           {/* Room Thumbnail / Logo (small like ChatTab) */}
@@ -845,7 +845,8 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({ data, onRefresh }) => 
         onPress={handleAddExpense}
         activeOpacity={0.85}
       >
-        <Feather name="plus" size={26} color="#FFFFFF" />
+        <Feather name="plus" size={20} color="#FFFDF9" />
+        <Text style={styles.fabText}>Add Expense</Text>
       </TouchableOpacity>
 
       <AddExpenseModal
@@ -933,8 +934,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginRight: 10,
     backgroundColor: '#E5D8C7',
-  },
-  headerThumbnailFallback: {
+  },  headerThumbnailFallback: {
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -1460,18 +1460,25 @@ const styles = StyleSheet.create({
   fab: {
     position: 'absolute',
     right: 20,
-    bottom: 20,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: Colors.rooms.forestGreen,
+    bottom: 28,
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: Colors.rooms.forestGreen,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
+    gap: 6,
+    backgroundColor: '#243C32',
+    borderRadius: 28,
+    paddingVertical: 13,
+    paddingHorizontal: 20,
+    shadowColor: '#1a2e25',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.28,
     shadowRadius: 10,
-    elevation: 10,
+    elevation: 8,
     zIndex: 50,
+  },
+  fabText: {
+    color: '#FFFDF9',
+    fontSize: 14.5,
+    fontWeight: '800',
+    letterSpacing: 0.2,
   },
 });
